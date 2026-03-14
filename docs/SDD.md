@@ -27,7 +27,7 @@ The system follows a **Three-Tier Architecture** to ensure a clean separation of
 ### 4.1 Class Diagram
 The following diagram illustrates the static structure of the system, including class attributes, methods, visibility, and relationships.
 
-![Class Diagram](docs/images/class_diagram.png)
+![Class Diagram](docs/images/Class_diagram.png)
 
 ---
 
