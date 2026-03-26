@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="ui.ActivityPage">
+    <top>
+        <Button text="Back" fx:id="backButton" />
+    </top>
+    <center>
+        <VBox spacing="10" alignment="TOP_LEFT">
+            <Label fx:id="activityNameLabel" style="-fx-font-weight: bold; -fx-font-size: 18;" />
+            <Label fx:id="activityDateLabel" />
+            <Label fx:id="activityLocationLabel" />
+            <Label text="Expenses" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+            <ListView fx:id="expenseListView" prefHeight="200" />
+            <Button text="Add Expense" fx:id="addExpenseButton" />
+        </VBox>
+    </center>
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20" />
+    </padding>
+</BorderPane>

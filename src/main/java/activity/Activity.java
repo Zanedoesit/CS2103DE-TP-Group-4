@@ -172,4 +172,10 @@ public class Activity extends BaseEntity implements TimeInterval, ExpenseManagab
         throw new ExpenseNotFoundException("Expense not found: name=" + name);
     }
 
+    @Override
+    public String toString() {
+        return getName() + " (" + (getLocation() != null ? getLocation().getName() : "No Location") + ") " +
+                (getStartDateTime() != null ? getStartDateTime().toLocalDate() : "?") + " - " +
+                (getEndDateTime() != null ? getEndDateTime().toLocalDate() : "?");
+    }
 }

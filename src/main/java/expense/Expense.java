@@ -73,4 +73,8 @@ public class Expense extends BaseEntity implements Copyable<Expense> {
         return copy;
     }
 
+    @Override
+    public String toString() {
+        return getName() + " - " + getCost() + " " + getCurrency() + " (" + getType() + ")";
+    }
 }

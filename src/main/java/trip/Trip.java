@@ -66,7 +66,10 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
 
     @Override
     public void setStartDateTime(LocalDateTime startDateTime) {
-        Objects.requireNonNull(startDateTime, "startDateTime");
+        if (startDateTime == null) {
+            // Default to 00:00 of today if not provided
+            startDateTime = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
+        }
         if (endDateTime != null && startDateTime.isAfter(endDateTime)) {
             throw new IllegalArgumentException("startDateTime must not be after endDateTime");
         }
@@ -80,7 +83,10 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
 
     @Override
     public void setEndDateTime(LocalDateTime endDateTime) {
-        Objects.requireNonNull(endDateTime, "endDateTime");
+        if (endDateTime == null) {
+            // Default to 23:59 of today if not provided
+            endDateTime = LocalDateTime.now().withHour(23).withMinute(59).withSecond(0).withNano(0);
+        }
         if (startDateTime != null && endDateTime.isBefore(startDateTime)) {
             throw new IllegalArgumentException("endDateTime must not be before startDateTime");
         }
@@ -242,4 +248,10 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
         throw new ExpenseNotFoundException("Expense not found: name=" + name);
     }
 
+    @Override
+    public String toString() {
+        return getName() + " (" + (getLocation() != null ? getLocation().getName() : "No Location") + ") " +
+                (getStartDateTime() != null ? getStartDateTime().toLocalDate() : "?") + " - " +
+                (getEndDateTime() != null ? getEndDateTime().toLocalDate() : "?");
+    }
 }
