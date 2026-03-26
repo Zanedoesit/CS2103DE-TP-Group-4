@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="ui.TripDetailWindow">
+    <center>
+        <VBox spacing="10" alignment="TOP_LEFT">
+            <Label fx:id="tripNameLabel" style="-fx-font-weight: bold; -fx-font-size: 18;" />
+            <Label fx:id="tripDateLabel" />
+            <Label fx:id="tripLocationLabel" />
+            <Button text="Back" fx:id="backButton" />
+        </VBox>
+    </center>
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20" />
+    </padding>
+</BorderPane>

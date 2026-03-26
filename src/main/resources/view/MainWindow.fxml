@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<BorderPane fx:id="rootPane" xmlns:fx="http://javafx.com/fxml" fx:controller="ui.MainWindow">
+    <center>
+        <HBox spacing="10" alignment="CENTER" BorderPane.alignment="CENTER">
+            <VBox spacing="10" alignment="TOP_LEFT" prefWidth="250">
+                <Label text="Trips" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+                <ListView fx:id="tripListView" prefHeight="400" />
+                <HBox spacing="10">
+                    <Button text="Add Trip" fx:id="addTripButton" />
+                    <Button text="Delete Trip" fx:id="deleteTripButton" />
+                </HBox>
+            </VBox>
+            <!-- Removed Activities and Expenses lists from home screen -->
+        </HBox>
+    </center>
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20" />
+    </padding>
+</BorderPane>
