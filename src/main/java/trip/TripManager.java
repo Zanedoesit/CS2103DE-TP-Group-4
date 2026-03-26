@@ -1,5 +1,7 @@
+package trip;
 import exceptions.TimeIntervalConflictException;
 import exceptions.TripNotFoundException;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;

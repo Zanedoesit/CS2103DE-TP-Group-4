@@ -1,3 +1,4 @@
+package expense;
 import exceptions.ExpenseNotFoundException;
 
 /**

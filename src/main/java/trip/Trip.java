@@ -1,11 +1,21 @@
+package trip;
 import exceptions.ActivityNotFoundException;
 import exceptions.ExpenseNotFoundException;
 import exceptions.TimeIntervalConflictException;
+import expense.Expense;
+import expense.ExpenseManagable;
+import location.Location;
+import temporal.TimeInterval;
+import utilities.BaseEntity;
+import utilities.Copyable;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import activity.Activity;
 
 /**
  * A trip that contains activities and expenses.

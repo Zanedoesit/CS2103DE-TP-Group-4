@@ -1,4 +1,7 @@
+package location;
 import java.util.Objects;
+
+import utilities.BaseEntity;
 
 /**
  * A physical location with geographic coordinates.

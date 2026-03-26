@@ -1,4 +1,8 @@
+package expense;
 import java.util.Objects;
+
+import utilities.BaseEntity;
+import utilities.Copyable;
 
 /**
  * A single cost line item.

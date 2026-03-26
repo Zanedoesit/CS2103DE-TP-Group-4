@@ -1,5 +1,10 @@
 import exceptions.TimeIntervalConflictException;
+import expense.Expense;
+import trip.Trip;
+
 import java.time.LocalDateTime;
+
+import activity.Activity;
 
 /**
  * Minimal demo runner for the Travel Planner domain model.

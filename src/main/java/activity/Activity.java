@@ -1,4 +1,13 @@
+package activity;
 import exceptions.ExpenseNotFoundException;
+import expense.Expense;
+import expense.ExpenseManagable;
+import expense.Expense.Currency;
+import location.Location;
+import temporal.TimeInterval;
+import utilities.BaseEntity;
+import utilities.Copyable;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
