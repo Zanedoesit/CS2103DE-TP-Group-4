@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<AnchorPane xmlns:fx="http://javafx.com/fxml" fx:controller="ui.MainWindow">
+    <children>
+        <TabPane layoutX="10.0" layoutY="10.0" prefHeight="580.0" prefWidth="780.0">
+            <tabs>
+                <Tab text="Trips">
+                    <content>
+                        <VBox spacing="10" alignment="TOP_LEFT">
+                            <padding>
+                                <Insets top="10" right="10" bottom="10" left="10" />
+                            </padding>
+                            <Label text="Trips List" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+                            <HBox spacing="10">
+                                <Button text="Add Trip" fx:id="addTripButton" />
+                                <Button text="Delete Trip" fx:id="deleteTripButton" />
+                            </HBox>
+                            <ListView fx:id="tripListView" prefHeight="200" prefWidth="300" />
+                        </VBox>
+                    </content>
+                </Tab>
+                <Tab text="Activities">
+                    <content>
+                        <VBox spacing="10" alignment="TOP_LEFT">
+                            <padding>
+                                <Insets top="10" right="10" bottom="10" left="10" />
+                            </padding>
+                            <Label text="Activities List" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+                            <HBox spacing="10">
+                                <Button text="Add Activity" fx:id="addActivityButton" />
+                                <Button text="Delete Activity" fx:id="deleteActivityButton" />
+                            </HBox>
+                            <ListView fx:id="activityListView" prefHeight="200" prefWidth="300" />
+                        </VBox>
+                    </content>
+                </Tab>
+                <Tab text="Expenses">
+                    <content>
+                        <VBox spacing="10" alignment="TOP_LEFT">
+                            <padding>
+                                <Insets top="10" right="10" bottom="10" left="10" />
+                            </padding>
+                            <Label text="Expenses List" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+                            <HBox spacing="10">
+                                <Button text="Add Expense" fx:id="addExpenseButton" />
+                                <Button text="Delete Expense" fx:id="deleteExpenseButton" />
+                            </HBox>
+                            <ListView fx:id="expenseListView" prefHeight="200" prefWidth="300" />
+                        </VBox>
+                    </content>
+                </Tab>
+            </tabs>
+        </TabPane>
+    </children>
+</AnchorPane>

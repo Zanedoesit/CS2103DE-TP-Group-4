@@ -1,4 +1,3 @@
-import bot.Bot;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
@@ -9,7 +8,7 @@ import ui.MainWindow;
 /**
  * Minimal demo runner for the Travel Planner domain model.
  */
-public class Main {
+public class Main extends Application {
 //    public static void main(String[] args) {
 //        Trip trip = new Trip(1, "Osaka Weekend",
 //                LocalDateTime.of(2026, 4, 3, 9, 0),
