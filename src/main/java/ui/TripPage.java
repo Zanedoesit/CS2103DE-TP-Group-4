@@ -223,6 +223,9 @@ public class TripPage {
             try {
                 trip.addActivity(activity);
                 activityObservableList.setAll(trip.getActivities());
+                if (tripManager != null) {
+                    tripManager.saveToFile();
+                }
             } catch (Exception e) {
                 // Optionally show error
             }

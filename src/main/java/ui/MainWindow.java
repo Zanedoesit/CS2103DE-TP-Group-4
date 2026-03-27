@@ -10,6 +10,8 @@ import javafx.stage.Stage;
 import javafx.scene.Scene;
 import javafx.util.StringConverter;
 import javafx.scene.control.DatePicker;
+
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -269,9 +271,12 @@ public class MainWindow {
 		dialog.showAndWait().ifPresent(activity -> {
 			try {
 				selectedTrip.addActivity(activity);
+				tripManager.saveToFile();
 				activityObservableList.setAll(selectedTrip.getActivities());
 			} catch (TimeIntervalConflictException e) {
 				showError("Activity time conflict: " + e.getMessage());
+			} catch (java.io.IOException e) {
+				showError("Failed to save: " + e.getMessage());
 			}
 		});
 	}
@@ -282,10 +287,13 @@ public class MainWindow {
 		if (selectedTrip != null && selectedActivity != null) {
 			try {
 				selectedTrip.deleteActivityById(selectedActivity.getId());
+				tripManager.saveToFile();
 				activityObservableList.setAll(selectedTrip.getActivities());
 				expenseObservableList.clear();
 			} catch (ActivityNotFoundException e) {
 				showError("Failed to delete activity: " + e.getMessage());
+			} catch (java.io.IOException e) {
+				showError("Failed to save: " + e.getMessage());
 			}
 		}
 	}
