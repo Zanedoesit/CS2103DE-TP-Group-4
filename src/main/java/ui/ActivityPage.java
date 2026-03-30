@@ -36,6 +36,7 @@ public class ActivityPage {
     private Activity activity;
     private ObservableList<Expense> expenseObservableList = FXCollections.observableArrayList();
     private TripPage tripPage;
+    private trip.TripManager tripManager;
 
     public void setActivity(Activity activity) {
         this.activity = activity;
@@ -47,6 +48,10 @@ public class ActivityPage {
 
     public void setTripPage(TripPage tripPage) {
         this.tripPage = tripPage;
+    }
+
+    public void setTripManager(trip.TripManager tripManager) {
+        this.tripManager = tripManager;
     }
 
     @FXML
@@ -116,6 +121,10 @@ public class ActivityPage {
             try {
                 activity.addExpense(expense);
                 expenseObservableList.setAll(activity.getExpenses());
+                //add tripmanager code
+                if (tripManager != null) {
+                    tripManager.saveToFile();
+                }
             } catch (Exception e) {
                 // Optionally show error
             }

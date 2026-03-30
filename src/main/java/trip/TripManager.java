@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import storage.JsonStorage;
+import java.io.IOException;
 
 /**
  * Registry for all trips in the application.
@@ -14,16 +16,64 @@ import java.util.Objects;
 public class TripManager {
 
     private final List<Trip> trips = new ArrayList<>();
+    // Added JsonStorage attribute
+    private final JsonStorage storage;
 
+    /**
+     * Create TripManager with default Json storage --> save to data/trips.json
+     */
     public TripManager() {
-        this(Collections.emptyList());
+        //this(Collections.emptyList()); prev version
+        this(new JsonStorage());
     }
 
+
+//    public TripManager(List<Trip> trips) {
+//        if (trips != null) {
+//            this.trips.addAll(trips);
+//        }
+//    }
+
+    /**
+     * Create TripManager with specific storage instance
+     * @param storage
+     */
+    public TripManager(JsonStorage storage) {
+        this.storage = storage;
+    }
+
+    /**
+     * Creates a TripManager with pre-loaded trips (used internally by load).
+     */
     public TripManager(List<Trip> trips) {
+        this.storage = new JsonStorage();
         if (trips != null) {
             this.trips.addAll(trips);
         }
     }
+    /**
+     * Loads trips from the JSON file into this TripManager.
+     * Call this once when the application starts.
+     *
+     * @throws IOException if reading the file fails
+     */
+    public void loadFromFile() throws IOException {
+        List<Trip> loaded = storage.load();
+        trips.clear();
+        trips.addAll(loaded);
+    }
+
+    /**
+     * Saves all current trips to the JSON file.
+     * Call this after any change (add, delete, modify).
+     *
+     * @throws IOException if writing the file fails
+     */
+    public void saveToFile() throws IOException {
+        storage.save(trips);
+    }
+
+
 
     public List<Trip> getTrips() {
         return Collections.unmodifiableList(trips);

@@ -10,6 +10,8 @@ import javafx.stage.Stage;
 import javafx.scene.Scene;
 import javafx.util.StringConverter;
 import javafx.scene.control.DatePicker;
+
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -61,6 +63,12 @@ public class MainWindow {
 
 	@FXML
     public void initialize() {
+		//load any previously saved trips from data/trips.json
+		try {
+			tripManager.loadFromFile();
+		} catch (java.io.IOException e) {
+			System.err.println("Could not load saved trips: " + e.getMessage());
+		}
 		showHomePage();
 	}
 
@@ -102,6 +110,7 @@ public class MainWindow {
 			TripPage controller = loader.getController();
 			controller.setTrip(trip);
 			controller.setMainWindow(this);
+			controller.setTripManager(tripManager);
 			rootPane.setCenter(tripPage);
 		} catch (Exception e) {
 			showError("Failed to load trip page: " + e.getMessage());
@@ -115,6 +124,7 @@ public class MainWindow {
 			ActivityPage controller = loader.getController();
 			controller.setActivity(activity);
 			controller.setTripPage(tripPage);
+			controller.setTripManager(tripManager);
 			rootPane.setCenter(activityPage);
 		} catch (Exception e) {
 			showError("Failed to load activity page: " + e.getMessage());
@@ -185,9 +195,12 @@ public class MainWindow {
 		dialog.showAndWait().ifPresent(trip -> {
 			try {
 				tripManager.addTrip(trip);
+				tripManager.saveToFile();
 				tripObservableList.setAll(tripManager.getTrips());
 			} catch (TimeIntervalConflictException e) {
 				showError("Trip time conflict: " + e.getMessage());
+			} catch (java.io.IOException e) {
+				showError("Failed to save: " + e.getMessage());
 			}
 		});
 	}
@@ -197,6 +210,7 @@ public class MainWindow {
 		if (selected != null) {
 			try {
 				tripManager.deleteTripById(selected.getId());
+				tripManager.saveToFile();
 				tripObservableList.setAll(tripManager.getTrips());
 				activityObservableList.clear();
 				expenseObservableList.clear();
@@ -257,9 +271,12 @@ public class MainWindow {
 		dialog.showAndWait().ifPresent(activity -> {
 			try {
 				selectedTrip.addActivity(activity);
+				tripManager.saveToFile();
 				activityObservableList.setAll(selectedTrip.getActivities());
 			} catch (TimeIntervalConflictException e) {
 				showError("Activity time conflict: " + e.getMessage());
+			} catch (java.io.IOException e) {
+				showError("Failed to save: " + e.getMessage());
 			}
 		});
 	}
@@ -270,10 +287,13 @@ public class MainWindow {
 		if (selectedTrip != null && selectedActivity != null) {
 			try {
 				selectedTrip.deleteActivityById(selectedActivity.getId());
+				tripManager.saveToFile();
 				activityObservableList.setAll(selectedTrip.getActivities());
 				expenseObservableList.clear();
 			} catch (ActivityNotFoundException e) {
 				showError("Failed to delete activity: " + e.getMessage());
+			} catch (java.io.IOException e) {
+				showError("Failed to save: " + e.getMessage());
 			}
 		}
 	}
@@ -329,6 +349,11 @@ public class MainWindow {
 				selectedTrip.addExpense(expense);
 				expenseObservableList.setAll(selectedTrip.getExpenses());
 			}
+			try {
+				tripManager.saveToFile();
+			} catch (java.io.IOException e) {
+				showError("Failed to save: " + e.getMessage());
+			}
 		});
 	}
 
@@ -345,8 +370,11 @@ public class MainWindow {
 				selectedTrip.deleteExpenseById(selectedExpense.getId());
 				expenseObservableList.setAll(selectedTrip.getExpenses());
 			}
+			tripManager.saveToFile();
 		} catch (ExpenseNotFoundException e) {
 			showError("Failed to delete expense: " + e.getMessage());
+		} catch (java.io.IOException e) {
+			showError("Failed to save: " + e.getMessage());
 		}
 	}
 

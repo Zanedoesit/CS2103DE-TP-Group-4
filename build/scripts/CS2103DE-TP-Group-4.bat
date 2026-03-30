@@ -68,7 +68,7 @@ goto fail
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\CS2103DE-TP-Group-4.jar;%APP_HOME%\lib\javafx-fxml-21.0.1-win.jar;%APP_HOME%\lib\javafx-fxml-21.0.1-mac.jar;%APP_HOME%\lib\javafx-fxml-21.0.1-linux.jar;%APP_HOME%\lib\javafx-controls-21.0.1-win.jar;%APP_HOME%\lib\javafx-controls-21.0.1-mac.jar;%APP_HOME%\lib\javafx-controls-21.0.1-linux.jar;%APP_HOME%\lib\javafx-graphics-21.0.1-win.jar;%APP_HOME%\lib\javafx-graphics-21.0.1-mac.jar;%APP_HOME%\lib\javafx-graphics-21.0.1-linux.jar;%APP_HOME%\lib\javafx-base-21.0.1-win.jar;%APP_HOME%\lib\javafx-base-21.0.1-mac.jar;%APP_HOME%\lib\javafx-base-21.0.1-linux.jar
+set CLASSPATH=%APP_HOME%\lib\CS2103DE-TP-Group-4.jar;%APP_HOME%\lib\gson-2.10.1.jar;%APP_HOME%\lib\javafx-fxml-21.0.1-win.jar;%APP_HOME%\lib\javafx-fxml-21.0.1-mac.jar;%APP_HOME%\lib\javafx-fxml-21.0.1-linux.jar;%APP_HOME%\lib\javafx-controls-21.0.1-win.jar;%APP_HOME%\lib\javafx-controls-21.0.1-mac.jar;%APP_HOME%\lib\javafx-controls-21.0.1-linux.jar;%APP_HOME%\lib\javafx-graphics-21.0.1-win.jar;%APP_HOME%\lib\javafx-graphics-21.0.1-mac.jar;%APP_HOME%\lib\javafx-graphics-21.0.1-linux.jar;%APP_HOME%\lib\javafx-base-21.0.1-win.jar;%APP_HOME%\lib\javafx-base-21.0.1-mac.jar;%APP_HOME%\lib\javafx-base-21.0.1-linux.jar
 
 
 @rem Execute CS2103DE-TP-Group-4

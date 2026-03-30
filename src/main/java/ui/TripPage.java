@@ -34,6 +34,7 @@ public class TripPage {
     private ObservableList<Activity> activityObservableList = FXCollections.observableArrayList();
     private ObservableList<Expense> expenseObservableList = FXCollections.observableArrayList();
     private MainWindow mainWindow;
+    private trip.TripManager tripManager;
 
     public void setTrip(Trip trip) {
         this.trip = trip;
@@ -46,6 +47,10 @@ public class TripPage {
 
     public void setMainWindow(MainWindow mainWindow) {
         this.mainWindow = mainWindow;
+    }
+
+    public void setTripManager(trip.TripManager tripManager) {
+        this.tripManager = tripManager;
     }
 
     @FXML
@@ -146,6 +151,13 @@ public class TripPage {
 
             trip.addExpense(expense);
             expenseObservableList.setAll(trip.getExpenses());
+            if (tripManager != null) {
+                try {
+                    tripManager.saveToFile();
+                } catch (java.io.IOException e) {
+                    /* logged */
+                }
+            }
         });
     }
 
@@ -211,6 +223,9 @@ public class TripPage {
             try {
                 trip.addActivity(activity);
                 activityObservableList.setAll(trip.getActivities());
+                if (tripManager != null) {
+                    tripManager.saveToFile();
+                }
             } catch (Exception e) {
                 // Optionally show error
             }
