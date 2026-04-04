@@ -11,6 +11,12 @@
             <Label fx:id="tripNameLabel" style="-fx-font-weight: bold; -fx-font-size: 18;" />
             <Label fx:id="tripDateLabel" />
             <Label fx:id="tripLocationLabel" />
+            <Label text="Itinerary Timeline" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+            <ScrollPane fitToWidth="true" prefHeight="260">
+                <content>
+                    <VBox fx:id="timelineContainer" spacing="10" />
+                </content>
+            </ScrollPane>
             <Label text="Activities" style="-fx-font-weight: bold; -fx-font-size: 14;" />
             <ListView fx:id="activityListView" prefHeight="200" />
             <Button text="Add Activity" fx:id="addActivityButton" />

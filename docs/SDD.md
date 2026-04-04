@@ -20,6 +20,14 @@ The system follows a **Three-Tier Architecture** to ensure a clean separation of
 * **Category:** An enumeration used to classify activities (e.g., FOOD, TRANSPORT) for filtering and budgeting purposes.
 * **Storage:** A utility component that handles file I/O operations, ensuring that user data is persisted locally and remains accessible across sessions.
 
+### 3.1 Itinerary Timeline (UI)
+The Trip page includes a time-based itinerary timeline:
+- Activities are rendered as blocks aligned to a 24-hour day axis.
+- Overlapping activities are visually highlighted.
+- Multi-day activities are split by day for clear visual reading.
+
+Detailed behavior and testing notes are in `docs/ITINERARY_TIMELINE.md`.
+
 ---
 
 ## 4. UML Diagrams
