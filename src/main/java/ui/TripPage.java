@@ -34,6 +34,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import filter.ActivityFilter;
+
 public class TripPage {
     private static final double DAY_TIMELINE_WIDTH = 240.0;
     private static final double BLOCK_HEIGHT = 28.0;
@@ -51,6 +53,8 @@ public class TripPage {
     @FXML
     private VBox timelineContainer;
     @FXML
+    private ComboBox<String> activityTypeFilter;
+    @FXML
     private ListView<Activity> activityListView;
     @FXML
     private ListView<Expense> expenseListView;
@@ -60,6 +64,8 @@ public class TripPage {
     private Button addExpenseButton;
     @FXML
     private Button backButton;
+    @FXML
+    private Label totalCostLabel;
 
     private Trip trip;
     private final ObservableList<Activity> activityObservableList = FXCollections.observableArrayList();
@@ -75,6 +81,7 @@ public class TripPage {
         activityObservableList.setAll(trip.getActivities());
         expenseObservableList.setAll(trip.getExpenses());
         refreshTimeline();
+        refreshTotalCost();
     }
 
     public void setMainWindow(MainWindow mainWindow) {
@@ -120,6 +127,15 @@ public class TripPage {
                 mainWindow.showHomePage();
             }
         });
+
+        //Populate and wire activity type filter
+        activityTypeFilter.getItems().add("ALL");
+        for (Activity.Type type : Activity.Type.values()) {
+            activityTypeFilter.getItems().add(type.name());
+        }
+
+        activityTypeFilter.getSelectionModel().selectFirst();
+        activityTypeFilter.setOnAction(e -> applyActivityFilter());
 
         addActivityButton.setOnAction(e -> handleAddActivity());
         addExpenseButton.setOnAction(e -> handleAddExpense());
@@ -327,6 +343,36 @@ public class TripPage {
         return overlaps;
     }
 
+    private void applyActivityFilter() {
+        String selected = activityTypeFilter.getSelectionModel().getSelectedItem();
+        Activity.Type filterType = null;
+        if (selected != null && !"ALL".equals(selected)) {
+            filterType = Activity.Type.valueOf(selected);
+        }
+        List<Activity> filtered = ActivityFilter.byType(trip.getActivities(), filterType);
+        activityObservableList.setAll(filtered);
+    }
+
+    private void refreshTotalCost() {
+        StringBuilder sb = new StringBuilder("Total Cost: ");
+        boolean first = true;
+        for (Expense.Currency currency : Expense.Currency.values()) {
+            float total = trip.getTotalCost(currency);
+            if (total > 0) {
+                if (!first) {
+                    sb.append(" | ");
+                }
+                sb.append(String.format("%.2f %s", total, currency.name()));
+                first = false;
+            }
+        }
+        if (first) {
+            sb.append("No expenses yet");
+        }
+        totalCostLabel.setText(sb.toString());
+    }
+
+
     private void handleAddExpense() {
         Dialog<Expense> dialog = new Dialog<>();
         dialog.setTitle("Add Expense");
@@ -375,6 +421,7 @@ public class TripPage {
         dialog.showAndWait().ifPresent(expense -> {
             trip.addExpense(expense);
             expenseObservableList.setAll(trip.getExpenses());
+            refreshTotalCost();
             if (tripManager != null) {
                 try {
                     tripManager.saveToFile();
@@ -407,6 +454,10 @@ public class TripPage {
         locationCombo.getItems().add(trip.getLocation());
         locationCombo.getSelectionModel().selectFirst();
 
+        ComboBox<Activity.Type> activityTypeCombo = new ComboBox<>();
+        activityTypeCombo.getItems().addAll(Activity.Type.values());
+        activityTypeCombo.getSelectionModel().selectFirst();
+
         grid.add(new Label("Name:"), 0, 0);
         grid.add(nameField, 1, 0);
         grid.add(new Label("Start Date:"), 0, 1);
@@ -419,6 +470,9 @@ public class TripPage {
         grid.add(endTimeField, 1, 4);
         grid.add(new Label("Location:"), 0, 5);
         grid.add(locationCombo, 1, 5);
+
+        grid.add(new Label("Type:"), 0, 6);
+        grid.add(activityTypeCombo, 1, 6);
 
         dialog.getDialogPane().setContent(grid);
         dialog.setResultConverter(dialogButton -> {
@@ -442,7 +496,10 @@ public class TripPage {
                     LocalDateTime start = (startDate != null) ? LocalDateTime.of(startDate, startTime) : null;
                     LocalDateTime end = (endDate != null) ? LocalDateTime.of(endDate, endTime) : null;
                     location.Location loc = locationCombo.getValue();
-                    return new Activity(activityObservableList.size() + 1, name, start, end, loc);
+                   // return new Activity(activityObservableList.size() + 1, name, start, end, loc);
+                    Activity newActivity = new Activity(activityObservableList.size() + 1, name, start, end, loc);
+                    newActivity.addType(activityTypeCombo.getValue());
+                    return newActivity;
                 } catch (Exception ex) {
                     // Intentionally returns null for invalid input.
                 }
@@ -453,8 +510,10 @@ public class TripPage {
         dialog.showAndWait().ifPresent(activity -> {
             try {
                 trip.addActivity(activity);
-                activityObservableList.setAll(trip.getActivities());
+              //  activityObservableList.setAll(trip.getActivities());
+                applyActivityFilter();
                 refreshTimeline();
+                refreshTotalCost();
                 if (tripManager != null) {
                     tripManager.saveToFile();
                 }

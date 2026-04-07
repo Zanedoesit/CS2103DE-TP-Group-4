@@ -18,11 +18,16 @@
                 </content>
             </ScrollPane>
             <Label text="Activities" style="-fx-font-weight: bold; -fx-font-size: 14;" />
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Filter by type:" />
+                    <ComboBox fx:id="activityTypeFilter" />
+            </HBox>
             <ListView fx:id="activityListView" prefHeight="200" />
             <Button text="Add Activity" fx:id="addActivityButton" />
             <Label text="Expenses" style="-fx-font-weight: bold; -fx-font-size: 14;" />
             <ListView fx:id="expenseListView" prefHeight="200" />
             <Button text="Add Expense" fx:id="addExpenseButton" />
+            <Label fx:id="totalCostLabel" style="-fx-font-weight: bold; -fx-font-size: 14; -fx-text-fill: #1e3a8a;" />
         </VBox>
     </center>
     <padding>
