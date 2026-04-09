@@ -204,6 +204,7 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
     public Trip copy() {
         Trip copy = new Trip(getId(), getName(), startDateTime, endDateTime, country);
         copy.setDescription(getDescription());
+        copy.setPriority(getPriority());
         copy.setImage(getImage());
         for (Expense expense : expenses) {
             copy.addExpense(expense.copy());

@@ -46,8 +46,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TripPage {
@@ -58,6 +60,10 @@ public class TripPage {
     private static final DateTimeFormatter DAY_HEADER_FORMAT = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy");
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+    private static final Comparator<Activity> ACTIVITY_DISPLAY_COMPARATOR = Comparator
+            .comparingInt(Activity::getPriority).reversed()
+            .thenComparing(Activity::getStartDateTime)
+            .thenComparing(Activity::getEndDateTime);
 
     @FXML
     private Label tripNameLabel;
@@ -95,6 +101,7 @@ public class TripPage {
     private Trip trip;
     private final ObservableList<Activity> activityObservableList = FXCollections.observableArrayList();
     private final ObservableList<Expense> expenseObservableList = FXCollections.observableArrayList();
+    private final Map<Integer, String> expenseSourceActivityById = new HashMap<>();
     private final Set<Integer> overlappingActivityIds = new HashSet<>();
     private final ImageAssetStore imageAssetStore = new ImageAssetStore();
     private ExpenseRepository expenseRepository;
@@ -215,11 +222,23 @@ public class TripPage {
                     Label subtitle = new Label(String.format("%.2f %s", expense.getCost(), expense.getCurrency()));
                     subtitle.getStyleClass().add("cell-subtitle");
 
+                    String sourceActivityName = expenseSourceActivityById.get(expense.getId());
+                    Label sourceMeta = null;
+                    if (sourceActivityName != null && !sourceActivityName.isBlank()) {
+                        sourceMeta = new Label("Activity: " + sourceActivityName);
+                        sourceMeta.getStyleClass().add("cell-meta");
+                    }
+
                     Label typeChip = new Label("Type: " + expense.getType().name());
                     typeChip.getStyleClass().add("meta-chip");
                     HBox chipRow = new HBox(6, typeChip);
 
-                    VBox cardText = new VBox(3, title, subtitle, chipRow);
+                    VBox cardText = new VBox(3);
+                    cardText.getChildren().addAll(title, subtitle);
+                    if (sourceMeta != null) {
+                        cardText.getChildren().add(sourceMeta);
+                    }
+                    cardText.getChildren().add(chipRow);
 
                     ImageView imageView = new ImageView();
                     imageView.setFitHeight(56);
@@ -573,7 +592,8 @@ public class TripPage {
         if (selected != null && !"ALL".equals(selected)) {
             filterType = Activity.Type.valueOf(selected);
         }
-        List<Activity> filtered = ActivityFilter.byType(trip.getActivities(), filterType);
+        List<Activity> filtered = new ArrayList<>(ActivityFilter.byType(trip.getActivities(), filterType));
+        filtered.sort(ACTIVITY_DISPLAY_COMPARATOR);
         activityObservableList.setAll(filtered);
         activityListView.refresh();
     }
@@ -599,13 +619,18 @@ public class TripPage {
 
     private void refreshExpenseList() {
         if (trip == null) {
+            expenseSourceActivityById.clear();
             expenseObservableList.clear();
             return;
         }
+        expenseSourceActivityById.clear();
         List<Expense> merged = new ArrayList<>();
         merged.addAll(trip.getExpenses());
         for (Activity activity : trip.getActivities()) {
-            merged.addAll(activity.getExpenses());
+            for (Expense expense : activity.getExpenses()) {
+                merged.add(expense);
+                expenseSourceActivityById.putIfAbsent(expense.getId(), activity.getName());
+            }
         }
         expenseObservableList.setAll(merged);
     }
@@ -751,6 +776,9 @@ public class TripPage {
                 refreshTotalCost();
                 if (tripManager != null) {
                     tripManager.saveToFile();
+                }
+                if (mainWindow != null) {
+                    mainWindow.refreshHeaderActivitySummary();
                 }
             } catch (Exception e) {
                 showError("Failed to edit expense: " + e.getMessage());
@@ -1124,6 +1152,9 @@ public class TripPage {
                 refreshTotalCost();
                 if (tripManager != null) {
                     tripManager.saveToFile();
+                }
+                if (mainWindow != null) {
+                    mainWindow.refreshHeaderActivitySummary();
                 }
             } catch (Exception e) {
                 showError("Failed to edit activity: " + e.getMessage());

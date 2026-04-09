@@ -56,8 +56,14 @@ import java.util.List;
 
 public class MainWindow {
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
-    private static final int MAX_ONGOING_SNAPSHOT_ITEMS = 2;
-    private static final int MAX_UPCOMING_SNAPSHOT_ITEMS = 3;
+    private static final Comparator<Trip> TRIP_DISPLAY_COMPARATOR = Comparator
+        .comparingInt(Trip::getPriority).reversed()
+        .thenComparing(Trip::getStartDateTime)
+        .thenComparing(Trip::getEndDateTime);
+    private static final Comparator<ActivitySummaryEntry> SNAPSHOT_ACTIVITY_COMPARATOR = Comparator
+        .comparingInt((ActivitySummaryEntry entry) -> entry.activity.getPriority()).reversed()
+        .thenComparing(entry -> entry.activity.getStartDateTime())
+        .thenComparing(entry -> entry.activity.getEndDateTime());
 
     private enum PageContext {
         HOME,
@@ -115,7 +121,7 @@ public class MainWindow {
 
     public void showHomePage() {
         currentPageContext = PageContext.HOME;
-        tripObservableList.setAll(tripManager.getTrips());
+        refreshTripList();
         tripListView.setItems(tripObservableList);
         tripListView.setPlaceholder(new Label("No trips yet. Click Add Trip to begin."));
         tripListView.setCellFactory(list -> new ListCell<>() {
@@ -190,7 +196,16 @@ public class MainWindow {
             controller.setExpenseRepository(expenseRepository);
             rootPane.setCenter(tripPage);
         } catch (Exception e) {
-            showError("Failed to load trip page: " + e.getMessage());
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            String detail = root.getMessage();
+            if (detail == null || detail.isBlank()) {
+                detail = root.getClass().getSimpleName();
+            }
+            e.printStackTrace();
+            showError("Failed to load trip page: " + detail);
         }
     }
 
@@ -280,7 +295,7 @@ public class MainWindow {
             tripManager.deleteTripById(trip.getId());
             tripManager.saveToFile();
             removeExpensesOwnedByTrip(trip);
-            tripObservableList.setAll(tripManager.getTrips());
+            refreshTripList();
             refreshHeaderActivitySummary();
             return true;
         } catch (Exception e) {
@@ -453,7 +468,7 @@ public class MainWindow {
             try {
                 tripManager.addTrip(trip);
                 tripManager.saveToFile();
-                tripObservableList.setAll(tripManager.getTrips());
+                refreshTripList();
                 refreshHeaderActivitySummary();
             } catch (IllegalArgumentException e) {
                 showError("Invalid trip: " + e.getMessage());
@@ -570,7 +585,7 @@ public class MainWindow {
                 LocalDateTime end = LocalDateTime.of(endDatePicker.getValue(), parseTimeOrDefault(endTimeField.getText(), LocalTime.of(23, 59)));
                 tripManager.updateTrip(selected.getId(), nameField.getText(), start, end, updatedCountry);
                 tripManager.saveToFile();
-                tripObservableList.setAll(tripManager.getTrips());
+                refreshTripList();
                 refreshHeaderActivitySummary();
                 updated[0] = true;
             } catch (Exception e) {
@@ -1178,31 +1193,36 @@ public class MainWindow {
         List<ActivitySummaryEntry> ongoing = activityEntries.stream()
                 .filter(entry -> !entry.activity.getStartDateTime().isAfter(now)
                         && entry.activity.getEndDateTime().isAfter(now))
-                .sorted(Comparator.comparing(entry -> entry.activity.getEndDateTime()))
+                .sorted(SNAPSHOT_ACTIVITY_COMPARATOR)
                 .toList();
 
         List<ActivitySummaryEntry> upcoming = activityEntries.stream()
                 .filter(entry -> entry.activity.getStartDateTime().isAfter(now))
-                .sorted(Comparator.comparing(entry -> entry.activity.getStartDateTime()))
+                .sorted(SNAPSHOT_ACTIVITY_COMPARATOR)
                 .toList();
 
         if (ongoing.isEmpty()) {
             ongoingActivityContainer.getChildren().add(createSnapshotEmptyCard("No ongoing activities"));
         } else {
-            int max = Math.min(MAX_ONGOING_SNAPSHOT_ITEMS, ongoing.size());
-            for (int i = 0; i < max; i++) {
-                ongoingActivityContainer.getChildren().add(createSnapshotCard(ongoing.get(i), true));
+            for (ActivitySummaryEntry entry : ongoing) {
+                ongoingActivityContainer.getChildren().add(createSnapshotCard(entry, true));
             }
         }
 
         if (upcoming.isEmpty()) {
             upcomingActivityContainer.getChildren().add(createSnapshotEmptyCard("No upcoming activities"));
         } else {
-            int max = Math.min(MAX_UPCOMING_SNAPSHOT_ITEMS, upcoming.size());
-            for (int i = 0; i < max; i++) {
-                upcomingActivityContainer.getChildren().add(createSnapshotCard(upcoming.get(i), false));
+            for (ActivitySummaryEntry entry : upcoming) {
+                upcomingActivityContainer.getChildren().add(createSnapshotCard(entry, false));
             }
         }
+    }
+
+    private void refreshTripList() {
+        List<Trip> sortedTrips = tripManager.getTrips().stream()
+                .sorted(TRIP_DISPLAY_COMPARATOR)
+                .toList();
+        tripObservableList.setAll(sortedTrips);
     }
 
     private VBox createSnapshotCard(ActivitySummaryEntry entry, boolean isOngoing) {

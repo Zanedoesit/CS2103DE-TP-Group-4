@@ -91,6 +91,7 @@ public class Expense extends BaseEntity implements Copyable<Expense> {
     public Expense copy() {
         Expense copy = new Expense(getId(), getName(), cost, currency, type, imagePath);
         copy.setDescription(getDescription());
+        copy.setPriority(getPriority());
         copy.setImage(getImage());
         return copy;
     }

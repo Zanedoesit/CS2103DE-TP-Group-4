@@ -20,11 +20,19 @@
                 <HBox spacing="12" styleClass="hero-snapshot-grid">
                     <VBox spacing="6" styleClass="snapshot-column" HBox.hgrow="ALWAYS">
                         <Label text="Ongoing" styleClass="snapshot-column-title" />
-                        <VBox fx:id="ongoingActivityContainer" spacing="6" />
+                        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" prefViewportHeight="168.0" styleClass="snapshot-scroll" VBox.vgrow="ALWAYS">
+                            <content>
+                                <VBox fx:id="ongoingActivityContainer" spacing="6" />
+                            </content>
+                        </ScrollPane>
                     </VBox>
                     <VBox spacing="6" styleClass="snapshot-column" HBox.hgrow="ALWAYS">
                         <Label text="Upcoming" styleClass="snapshot-column-title" />
-                        <VBox fx:id="upcomingActivityContainer" spacing="6" />
+                        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" prefViewportHeight="168.0" styleClass="snapshot-scroll" VBox.vgrow="ALWAYS">
+                            <content>
+                                <VBox fx:id="upcomingActivityContainer" spacing="6" />
+                            </content>
+                        </ScrollPane>
                     </VBox>
                 </HBox>
             </VBox>

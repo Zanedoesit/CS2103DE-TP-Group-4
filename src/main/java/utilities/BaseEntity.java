@@ -13,6 +13,8 @@ public abstract class BaseEntity {
 
     private String description;
 
+    private int priority;
+
     // BufferedImage should remain runtime-only and never be serialized to JSON.
     private transient BufferedImage image;
 
@@ -23,6 +25,7 @@ public abstract class BaseEntity {
     protected BaseEntity(int id, String name) {
         setId(id);
         setName(name);
+        setPriority(0);
     }
 
     public int getId() {
@@ -54,6 +57,17 @@ public abstract class BaseEntity {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    public void setPriority(int priority) {
+        if (priority < 0) {
+            throw new IllegalArgumentException("priority must be non-negative");
+        }
+        this.priority = priority;
     }
 
     public BufferedImage getImage() {

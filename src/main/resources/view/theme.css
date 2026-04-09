@@ -78,6 +78,20 @@
     -fx-text-fill: #ccfbf1;
 }
 
+.snapshot-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.snapshot-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.snapshot-scroll .corner {
+    -fx-background-color: transparent;
+}
+
 .snapshot-item {
     -fx-background-color: rgba(255, 255, 255, 0.16);
     -fx-background-radius: 8;

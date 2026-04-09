@@ -220,6 +220,7 @@ public class JsonStorage {
             JsonObject obj = new JsonObject();
             obj.addProperty("id", src.getId());
             obj.addProperty("name", src.getName());
+            obj.addProperty("priority", src.getPriority());
             obj.add("startDateTime", context.serialize(src.getStartDateTime(), LocalDateTime.class));
             obj.add("endDateTime", context.serialize(src.getEndDateTime(), LocalDateTime.class));
             obj.addProperty("countryId", src.getCountry() != null ? src.getCountry().getId() : 0);
@@ -277,6 +278,14 @@ public class JsonStorage {
             // Create the Trip using its proper constructor (with validation)
             Trip trip = new Trip(id, name, start, end, country);
 
+            if (obj.has("priority") && !obj.get("priority").isJsonNull()) {
+                try {
+                    trip.setPriority(Math.max(0, obj.get("priority").getAsInt()));
+                } catch (Exception ignored) {
+                    trip.setPriority(0);
+                }
+            }
+
             // Set optional description
             if (obj.has("description") && !obj.get("description").isJsonNull()) {
                 trip.setDescription(obj.get("description").getAsString());
@@ -331,6 +340,7 @@ public class JsonStorage {
             JsonObject obj = new JsonObject();
             obj.addProperty("id", src.getId());
             obj.addProperty("name", src.getName());
+            obj.addProperty("priority", src.getPriority());
             obj.add("startDateTime", context.serialize(src.getStartDateTime(), LocalDateTime.class));
             obj.add("endDateTime", context.serialize(src.getEndDateTime(), LocalDateTime.class));
             if (src.getDescription() != null) {
@@ -373,6 +383,14 @@ public class JsonStorage {
             }
 
             Activity activity = new Activity(id, name, start, end, location);
+
+            if (obj.has("priority") && !obj.get("priority").isJsonNull()) {
+                try {
+                    activity.setPriority(Math.max(0, obj.get("priority").getAsInt()));
+                } catch (Exception ignored) {
+                    activity.setPriority(0);
+                }
+            }
 
             if (obj.has("description") && !obj.get("description").isJsonNull()) {
                 activity.setDescription(obj.get("description").getAsString());

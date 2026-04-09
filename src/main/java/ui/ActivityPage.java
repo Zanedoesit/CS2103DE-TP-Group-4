@@ -288,6 +288,9 @@ public class ActivityPage {
                 if (tripManager != null) {
                     tripManager.saveToFile();
                 }
+                if (mainWindow != null) {
+                    mainWindow.refreshHeaderActivitySummary();
+                }
             } catch (Exception e) {
                 showError("Failed to edit expense: " + e.getMessage());
             }
@@ -423,6 +426,9 @@ public class ActivityPage {
                 setActivity(activity);
                 if (tripManager != null) {
                     tripManager.saveToFile();
+                }
+                if (mainWindow != null) {
+                    mainWindow.refreshHeaderActivitySummary();
                 }
             } catch (Exception e) {
                 showError("Failed to edit activity: " + e.getMessage());

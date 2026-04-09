@@ -159,6 +159,7 @@ public class Activity extends BaseEntity implements TimeInterval, ExpenseManagab
     public Activity copy() {
         Activity copy = new Activity(getId(), getName(), startDateTime, endDateTime, location);
         copy.setDescription(getDescription());
+        copy.setPriority(getPriority());
         copy.setImage(getImage());
         copy.setTypes(types);
         for (Expense expense : expenses) {
