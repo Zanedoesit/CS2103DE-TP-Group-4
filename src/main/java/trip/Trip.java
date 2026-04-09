@@ -1,10 +1,10 @@
 package trip;
+import country.Country;
 import exceptions.ActivityNotFoundException;
 import exceptions.ExpenseNotFoundException;
 import exceptions.TimeIntervalConflictException;
 import expense.Expense;
 import expense.ExpenseManagable;
-import location.Location;
 import temporal.TimeInterval;
 import utilities.BaseEntity;
 import utilities.Copyable;
@@ -29,21 +29,21 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
 
     private final List<Expense> expenses = new ArrayList<>();
 
-    private Location location;
+    private Country country;
 
     private LocalDateTime startDateTime;
 
     private LocalDateTime endDateTime;
 
-    public Trip(int id, String name, LocalDateTime startDateTime, LocalDateTime endDateTime) {
-        this(id, name, startDateTime, endDateTime, null);
-    }
-
-    public Trip(int id, String name, LocalDateTime startDateTime, LocalDateTime endDateTime, Location location) {
+    public Trip(int id, String name, LocalDateTime startDateTime, LocalDateTime endDateTime, Country country) {
         super(id, name);
         setStartDateTime(startDateTime);
         setEndDateTime(endDateTime);
-        this.location = location;
+        setCountry(country);
+    }
+
+    public Trip(int id, String name, LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        this(id, name, startDateTime, endDateTime, new Country(0, "Unspecified"));
     }
 
     public List<Activity> getActivities() {
@@ -54,12 +54,21 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
         return Collections.unmodifiableList(expenses);
     }
 
-    public Location getLocation() {
-        return location;
+    public void setExpenses(List<Expense> expenses) {
+        this.expenses.clear();
+        if (expenses != null) {
+            for (Expense expense : expenses) {
+                this.expenses.add(Objects.requireNonNull(expense, "expense"));
+            }
+        }
     }
 
-    public void setLocation(Location location) {
-        this.location = location;
+    public Country getCountry() {
+        return country;
+    }
+
+    public void setCountry(Country country) {
+        this.country = Objects.requireNonNull(country, "country");
     }
 
     @Override
@@ -199,7 +208,7 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
 
     @Override
     public Trip copy() {
-        Trip copy = new Trip(getId(), getName(), startDateTime, endDateTime, location);
+        Trip copy = new Trip(getId(), getName(), startDateTime, endDateTime, country);
         copy.setDescription(getDescription());
         copy.setImage(getImage());
         for (Expense expense : expenses) {
@@ -255,7 +264,7 @@ public class Trip extends BaseEntity implements TimeInterval, ExpenseManagable, 
     public String toString() {
         return "Trip #" + getId() + ": " + getName()
                 + " | " + formatDateTime(getStartDateTime()) + " -> " + formatDateTime(getEndDateTime())
-                + " | Location: " + (getLocation() != null ? getLocation() : "No location")
+            + " | Country: " + (getCountry() != null ? getCountry() : "No country")
                 + " | Activities: " + activities.size()
                 + " | Expenses: " + expenses.size();
     }

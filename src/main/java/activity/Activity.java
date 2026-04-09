@@ -71,6 +71,15 @@ public class Activity extends BaseEntity implements TimeInterval, ExpenseManagab
         return Collections.unmodifiableList(expenses);
     }
 
+    public void setExpenses(List<Expense> expenses) {
+        this.expenses.clear();
+        if (expenses != null) {
+            for (Expense expense : expenses) {
+                this.expenses.add(Objects.requireNonNull(expense, "expense"));
+            }
+        }
+    }
+
     public Location getLocation() {
         return location;
     }

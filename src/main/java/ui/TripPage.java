@@ -2,11 +2,13 @@ package ui;
 
 import activity.Activity;
 import expense.Expense;
+import expense.ExpenseRepository;
 import filter.ActivityFilter;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -18,14 +20,22 @@ import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.Window;
 import javafx.util.StringConverter;
+import storage.ImageAssetStore;
 import trip.Trip;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,15 +73,23 @@ public class TripPage {
     @FXML
     private Button addActivityButton;
     @FXML
+    private Button editActivityButton;
+    @FXML
     private Button addExpenseButton;
     @FXML
+    private Button editExpenseButton;
+    @FXML
     private Button backButton;
+    @FXML
+    private ImageView tripImageView;
     @FXML
     private Label totalCostLabel;
 
     private Trip trip;
     private final ObservableList<Activity> activityObservableList = FXCollections.observableArrayList();
     private final ObservableList<Expense> expenseObservableList = FXCollections.observableArrayList();
+    private final ImageAssetStore imageAssetStore = new ImageAssetStore();
+    private ExpenseRepository expenseRepository;
     private MainWindow mainWindow;
     private trip.TripManager tripManager;
 
@@ -79,9 +97,12 @@ public class TripPage {
         this.trip = trip;
         tripNameLabel.setText(trip.getName());
         tripDateLabel.setText(formatDateTimeRange(trip.getStartDateTime(), trip.getEndDateTime()));
-        tripLocationLabel.setText(trip.getLocation() != null ? trip.getLocation().toString() : "");
+        tripLocationLabel.setText(trip.getCountry() != null ? trip.getCountry().toString() : "");
+        if (tripImageView != null) {
+            tripImageView.setImage(resolveImage(trip.getCountry() != null ? trip.getCountry().getImagePath() : null));
+        }
         activityObservableList.setAll(trip.getActivities());
-        expenseObservableList.setAll(trip.getExpenses());
+        refreshExpenseList();
         refreshTimeline();
         refreshTotalCost();
     }
@@ -92,6 +113,10 @@ public class TripPage {
 
     public void setTripManager(trip.TripManager tripManager) {
         this.tripManager = tripManager;
+    }
+
+    public void setExpenseRepository(ExpenseRepository expenseRepository) {
+        this.expenseRepository = expenseRepository;
     }
 
     @FXML
@@ -120,12 +145,34 @@ public class TripPage {
                     Label subtitle = new Label(formatDateTimeRange(activity.getStartDateTime(), activity.getEndDateTime()));
                     subtitle.getStyleClass().add("cell-subtitle");
 
-                    String typeText = activity.getTypes().isEmpty() ? "Type: N/A" : "Type: " + activity.getTypes().get(0);
-                    String locationText = activity.getLocation() != null ? activity.getLocation().toString() : "No location";
-                    Label meta = new Label(locationText + " | " + typeText);
-                    meta.getStyleClass().add("cell-meta");
+                    Label locationMeta = new Label(activity.getLocation() != null
+                            ? "Location: " + activity.getLocation().toString()
+                            : "Location: none");
+                    locationMeta.getStyleClass().add("cell-meta");
 
-                    VBox card = new VBox(3, title, subtitle, meta);
+                    Label typeChip = new Label(activity.getTypes().isEmpty()
+                            ? "Type: OTHER"
+                            : "Type: " + activity.getTypes().get(0).name());
+                    typeChip.getStyleClass().add("meta-chip");
+
+                    HBox chipRow = new HBox(6, typeChip);
+                    VBox cardText = new VBox(3, title, subtitle, locationMeta, chipRow);
+
+                    ImageView imageView = new ImageView();
+                    imageView.setFitHeight(56);
+                    imageView.setFitWidth(56);
+                    imageView.setPreserveRatio(true);
+                    imageView.getStyleClass().add("thumb");
+                    if (activity.getLocation() != null) {
+                        Image image = resolveImage(activity.getLocation().getImagePath());
+                        if (image != null) {
+                            imageView.setImage(image);
+                        }
+                    }
+
+                    HBox content = new HBox(10, imageView, cardText);
+
+                    VBox card = new VBox(content);
                     card.getStyleClass().add("friendly-cell");
                     setText(null);
                     setGraphic(card);
@@ -147,10 +194,25 @@ public class TripPage {
                     Label subtitle = new Label(String.format("%.2f %s", expense.getCost(), expense.getCurrency()));
                     subtitle.getStyleClass().add("cell-subtitle");
 
-                    Label meta = new Label("Type: " + expense.getType());
-                    meta.getStyleClass().add("cell-meta");
+                    Label typeChip = new Label("Type: " + expense.getType().name());
+                    typeChip.getStyleClass().add("meta-chip");
+                    HBox chipRow = new HBox(6, typeChip);
 
-                    VBox card = new VBox(3, title, subtitle, meta);
+                    VBox cardText = new VBox(3, title, subtitle, chipRow);
+
+                    ImageView imageView = new ImageView();
+                    imageView.setFitHeight(56);
+                    imageView.setFitWidth(56);
+                    imageView.setPreserveRatio(true);
+                    imageView.getStyleClass().add("thumb");
+                    Image image = resolveImage(expense.getImagePath());
+                    if (image != null) {
+                        imageView.setImage(image);
+                    }
+
+                    HBox content = new HBox(10, imageView, cardText);
+
+                    VBox card = new VBox(content);
                     card.getStyleClass().add("friendly-cell");
                     setText(null);
                     setGraphic(card);
@@ -168,12 +230,34 @@ public class TripPage {
         for (Activity.Type type : Activity.Type.values()) {
             activityTypeFilter.getItems().add(type.name());
         }
+        activityTypeFilter.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : item);
+            }
+        });
+        activityTypeFilter.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item);
+            }
+        });
+        activityTypeFilter.setVisibleRowCount(6);
+        activityTypeFilter.setPrefWidth(190);
 
         activityTypeFilter.getSelectionModel().selectFirst();
         activityTypeFilter.setOnAction(e -> applyActivityFilter());
 
         addActivityButton.setOnAction(e -> handleAddActivity());
+        if (editActivityButton != null) {
+            editActivityButton.setOnAction(e -> handleEditActivity());
+        }
         addExpenseButton.setOnAction(e -> handleAddExpense());
+        if (editExpenseButton != null) {
+            editExpenseButton.setOnAction(e -> handleEditExpense());
+        }
 
         activityListView.setOnMouseClicked(event -> {
             Activity selected = activityListView.getSelectionModel().getSelectedItem();
@@ -213,7 +297,7 @@ public class TripPage {
 
         long overlapCount = segments.stream().filter(segment -> segment.overlaps).count();
         Label daySummary = new Label(segments.size() + " activities"
-                + (overlapCount > 0 ? " | " + overlapCount + " overlap(s)" : " | no overlaps"));
+            + (overlapCount > 0 ? ", " + overlapCount + " overlap(s)" : ", no overlaps"));
         daySummary.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
 
         Pane ruler = createHourRuler(timelineWidth);
@@ -286,9 +370,10 @@ public class TripPage {
             }
 
             String warning = segment.overlaps ? " (overlap detected)" : "";
-            activityBlock.setTooltip(new Tooltip(segment.activity.getName() + ": "
-                    + createTimeRangeText(segment.startMinute, segment.endMinute)
-                    + " | duration " + formatDuration(segment.endMinute - segment.startMinute) + warning));
+                int durationMinutes = (int) Duration.between(segment.activity.getStartDateTime(), segment.activity.getEndDateTime()).toMinutes();
+                activityBlock.setTooltip(new Tooltip(segment.activity.getName() + ": "
+                    + formatDateTimeRange(segment.activity.getStartDateTime(), segment.activity.getEndDateTime())
+                    + ", duration " + formatDuration(durationMinutes) + warning));
             timelinePane.getChildren().add(activityBlock);
         }
         return timelinePane;
@@ -312,7 +397,10 @@ public class TripPage {
 
     private String createBlockText(DaySegment segment) {
         String typeBadge = segment.activity.getTypes().isEmpty() ? "" : " [" + segment.activity.getTypes().get(0).name() + "]";
-        return segment.activity.getName() + typeBadge + " | " + createTimeRangeText(segment.startMinute, segment.endMinute);
+        if (segment.multiDay) {
+            return segment.activity.getName() + typeBadge + " (Multi-day)";
+        }
+        return segment.activity.getName() + typeBadge + " " + createTimeRangeText(segment.startMinute, segment.endMinute);
     }
 
     private String createTimeRangeText(int startMinute, int endMinute) {
@@ -374,12 +462,25 @@ public class TripPage {
 
         List<DaySegment> segments = new ArrayList<>();
         for (Activity activity : activities) {
-            LocalDateTime clippedStart = activity.getStartDateTime().isAfter(dayStart) ? activity.getStartDateTime() : dayStart;
-            LocalDateTime clippedEnd = activity.getEndDateTime().isBefore(dayEnd) ? activity.getEndDateTime() : dayEnd;
-            if (clippedEnd.isAfter(clippedStart)) {
-                int startMinute = (int) Duration.between(dayStart, clippedStart).toMinutes();
-                int endMinute = (int) Duration.between(dayStart, clippedEnd).toMinutes();
-                segments.add(new DaySegment(activity, startMinute, endMinute, overlappingActivities.contains(activity)));
+            if (!activity.getEndDateTime().isAfter(dayStart) || !activity.getStartDateTime().isBefore(dayEnd)) {
+                continue;
+            }
+
+            boolean multiDay = !activity.getStartDateTime().toLocalDate().equals(activity.getEndDateTime().toLocalDate());
+            int startMinute;
+            int endMinute;
+            if (multiDay) {
+                // Show full-day span on every overlapping day to avoid partial clipping.
+                startMinute = 0;
+                endMinute = 24 * 60;
+            } else {
+                startMinute = (int) Duration.between(dayStart, activity.getStartDateTime()).toMinutes();
+                endMinute = (int) Duration.between(dayStart, activity.getEndDateTime()).toMinutes();
+            }
+
+            if (endMinute > startMinute) {
+                segments.add(new DaySegment(activity, startMinute, endMinute,
+                        overlappingActivities.contains(activity), multiDay));
             }
         }
         segments.sort(Comparator
@@ -423,7 +524,7 @@ public class TripPage {
             float total = trip.getTotalCost(currency);
             if (total > 0) {
                 if (!first) {
-                    sb.append(" | ");
+                    sb.append("    ");
                 }
                 sb.append(String.format("%.2f %s", total, currency.name()));
                 first = false;
@@ -435,10 +536,24 @@ public class TripPage {
         totalCostLabel.setText(sb.toString());
     }
 
+    private void refreshExpenseList() {
+        if (trip == null) {
+            expenseObservableList.clear();
+            return;
+        }
+        List<Expense> merged = new ArrayList<>();
+        merged.addAll(trip.getExpenses());
+        for (Activity activity : trip.getActivities()) {
+            merged.addAll(activity.getExpenses());
+        }
+        expenseObservableList.setAll(merged);
+    }
+
     private void handleAddExpense() {
-        Dialog<Expense> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Add Expense");
         dialog.setHeaderText("Enter expense details");
+        applyDialogTheme(dialog);
         ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
 
@@ -454,6 +569,10 @@ public class TripPage {
         ComboBox<Expense.Type> typeCombo = new ComboBox<>();
         typeCombo.getItems().addAll(Expense.Type.values());
         typeCombo.getSelectionModel().selectFirst();
+        TextField imagePathField = new TextField();
+        imagePathField.setEditable(false);
+        Button uploadButton = new Button("Upload Image...");
+        uploadButton.setOnAction(e -> chooseImagePath(dialog, imagePathField));
 
         grid.add(new Label("Name:"), 0, 0);
         grid.add(nameField, 1, 0);
@@ -463,33 +582,117 @@ public class TripPage {
         grid.add(currencyCombo, 1, 2);
         grid.add(new Label("Type:"), 0, 3);
         grid.add(typeCombo, 1, 3);
+        grid.add(new Label("Image:"), 0, 4);
+        grid.add(new HBox(8, imagePathField, uploadButton), 1, 4);
 
         dialog.getDialogPane().setContent(grid);
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == addButtonType) {
-                try {
-                    String name = nameField.getText();
-                    float cost = Float.parseFloat(costField.getText());
-                    Expense.Currency currency = currencyCombo.getValue();
-                    Expense.Type type = typeCombo.getValue();
-                    return new Expense(expenseObservableList.size() + 1, name, cost, currency, type);
-                } catch (Exception ex) {
-                    // Intentionally returns null for invalid input.
-                }
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != addButtonType) {
+                return;
             }
-            return null;
-        });
-
-        dialog.showAndWait().ifPresent(expense -> {
-            trip.addExpense(expense);
-            expenseObservableList.setAll(trip.getExpenses());
-            refreshTotalCost();
-            if (tripManager != null) {
-                try {
-                    tripManager.saveToFile();
-                } catch (java.io.IOException e) {
-                    // Intentionally ignored in this lightweight UI flow.
+            try {
+                String name = nameField.getText();
+                float cost = Float.parseFloat(costField.getText());
+                Expense.Currency currency = currencyCombo.getValue();
+                Expense.Type type = typeCombo.getValue();
+                Expense expense;
+                if (expenseRepository != null) {
+                    expense = expenseRepository.createExpense(name, cost, currency, type, imagePathField.getText());
+                    expenseRepository.save();
+                } else {
+                    expense = new Expense(expenseObservableList.size() + 1, name, cost, currency, type);
                 }
+
+                trip.addExpense(expense);
+                refreshExpenseList();
+                refreshTotalCost();
+                if (tripManager != null) {
+                    tripManager.saveToFile();
+                }
+                if (mainWindow != null) {
+                    mainWindow.refreshHeaderActivitySummary();
+                }
+            } catch (Exception e) {
+                showError("Failed to add expense: " + e.getMessage());
+            }
+        });
+    }
+
+    private void handleEditExpense() {
+        Expense selectedExpense = expenseListView.getSelectionModel().getSelectedItem();
+        if (selectedExpense == null) {
+            showError("Please select an expense to edit.");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Expense");
+        dialog.setHeaderText("Update expense details");
+        applyDialogTheme(dialog);
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField nameField = new TextField(selectedExpense.getName());
+        TextField costField = new TextField(String.format("%.2f", selectedExpense.getCost()));
+        ComboBox<Expense.Currency> currencyCombo = new ComboBox<>();
+        currencyCombo.getItems().addAll(Expense.Currency.values());
+        currencyCombo.getSelectionModel().select(selectedExpense.getCurrency());
+        ComboBox<Expense.Type> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll(Expense.Type.values());
+        typeCombo.getSelectionModel().select(selectedExpense.getType());
+        TextField imagePathField = new TextField(selectedExpense.getImagePath() == null ? "" : selectedExpense.getImagePath());
+        imagePathField.setEditable(false);
+        Button uploadButton = new Button("Upload Image...");
+        uploadButton.setOnAction(e -> chooseImagePath(dialog, imagePathField));
+
+        grid.add(new Label("Name:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Cost:"), 0, 1);
+        grid.add(costField, 1, 1);
+        grid.add(new Label("Currency:"), 0, 2);
+        grid.add(currencyCombo, 1, 2);
+        grid.add(new Label("Type:"), 0, 3);
+        grid.add(typeCombo, 1, 3);
+        grid.add(new Label("Image:"), 0, 4);
+        grid.add(new HBox(8, imagePathField, uploadButton), 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != saveButtonType) {
+                return;
+            }
+            try {
+                float cost = Float.parseFloat(costField.getText());
+                if (expenseRepository != null) {
+                    expenseRepository.updateExpense(
+                            selectedExpense.getId(),
+                            nameField.getText(),
+                            cost,
+                            currencyCombo.getValue(),
+                            typeCombo.getValue(),
+                            imagePathField.getText());
+                    expenseRepository.save();
+                } else {
+                    selectedExpense.setName(nameField.getText());
+                    selectedExpense.setCost(cost);
+                    selectedExpense.setCurrency(currencyCombo.getValue());
+                    selectedExpense.setType(typeCombo.getValue());
+                    if (!imagePathField.getText().isBlank()) {
+                        selectedExpense.setImagePath(imagePathField.getText());
+                    }
+                }
+
+                refreshExpenseList();
+                refreshTotalCost();
+                if (tripManager != null) {
+                    tripManager.saveToFile();
+                }
+            } catch (Exception e) {
+                showError("Failed to edit expense: " + e.getMessage());
             }
         });
     }
@@ -498,6 +701,7 @@ public class TripPage {
         Dialog<Activity> dialog = new Dialog<>();
         dialog.setTitle("Add Activity");
         dialog.setHeaderText("Enter activity details");
+        applyDialogTheme(dialog);
         ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
 
@@ -513,11 +717,31 @@ public class TripPage {
         TextField startTimeField = new TextField("00:00");
         TextField endTimeField = new TextField("23:59");
         ComboBox<location.Location> locationCombo = new ComboBox<>();
+        Runnable refreshLocations = () -> {
+            if (mainWindow == null) {
+                return;
+            }
+            location.Location selectedLocation = locationCombo.getValue();
+            List<location.Location> refreshed = new ArrayList<>();
+            for (location.Location location : mainWindow.getAvailableLocations()) {
+                if (trip.getCountry() == null
+                        || location.getCountry() == null
+                        || location.getCountry().getId() == trip.getCountry().getId()) {
+                    refreshed.add(location);
+                }
+            }
+            locationCombo.getItems().setAll(refreshed);
+            if (locationCombo.getItems().isEmpty()) {
+                locationCombo.getSelectionModel().clearSelection();
+                return;
+            }
+            if (selectedLocation == null || !locationCombo.getItems().contains(selectedLocation)) {
+                locationCombo.getSelectionModel().selectFirst();
+            }
+        };
         if (mainWindow != null) {
-            locationCombo.getItems().addAll(mainWindow.getAvailableLocations());
-        }
-        if (locationCombo.getItems().isEmpty() && trip.getLocation() != null) {
-            locationCombo.getItems().add(trip.getLocation());
+            refreshLocations.run();
+            mainWindow.configureLocationComboForDelete(locationCombo, refreshLocations);
         }
         locationCombo.setConverter(new StringConverter<>() {
             @Override
@@ -538,12 +762,28 @@ public class TripPage {
             if (mainWindow != null) {
                 location.Location location = mainWindow.promptAddLocation();
                 if (location != null) {
-                    locationCombo.getItems().setAll(mainWindow.getAvailableLocations());
+                    refreshLocations.run();
                     locationCombo.getSelectionModel().select(location);
                 }
             }
         });
-        HBox locationRow = new HBox(8, locationCombo, newLocationButton);
+        Button editLocationButton = new Button("Edit...");
+        editLocationButton.setOnAction(e -> {
+            if (mainWindow != null) {
+                location.Location edited = mainWindow.promptEditLocation(locationCombo.getValue());
+                if (edited != null) {
+                    refreshLocations.run();
+                    locationCombo.getSelectionModel().select(edited);
+                }
+            }
+        });
+        Button deleteLocationButton = new Button("Delete");
+        deleteLocationButton.setOnAction(e -> {
+            if (mainWindow != null) {
+                mainWindow.deleteLocationFromUi(locationCombo.getValue(), refreshLocations);
+            }
+        });
+        HBox locationRow = new HBox(8, locationCombo, newLocationButton, editLocationButton, deleteLocationButton);
 
         ComboBox<Activity.Type> activityTypeCombo = new ComboBox<>();
         activityTypeCombo.getItems().addAll(Activity.Type.values());
@@ -602,14 +842,184 @@ public class TripPage {
                 trip.addActivity(activity);
                 applyActivityFilter();
                 refreshTimeline();
+                refreshExpenseList();
+                refreshTotalCost();
+                if (tripManager != null) {
+                    tripManager.saveToFile();
+                }
+                if (mainWindow != null) {
+                    mainWindow.refreshHeaderActivitySummary();
+                }
+            } catch (Exception e) {
+                showError("Failed to add activity: " + e.getMessage());
+            }
+        });
+    }
+
+    private void handleEditActivity() {
+        Activity selectedActivity = activityListView.getSelectionModel().getSelectedItem();
+        if (selectedActivity == null) {
+            showError("Please select an activity to edit.");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Activity");
+        dialog.setHeaderText("Update activity details");
+        applyDialogTheme(dialog);
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField nameField = new TextField(selectedActivity.getName());
+        DatePicker startDatePicker = new DatePicker(selectedActivity.getStartDateTime().toLocalDate());
+        DatePicker endDatePicker = new DatePicker(selectedActivity.getEndDateTime().toLocalDate());
+        TextField startTimeField = new TextField(selectedActivity.getStartDateTime().toLocalTime().format(TIME_FORMAT));
+        TextField endTimeField = new TextField(selectedActivity.getEndDateTime().toLocalTime().format(TIME_FORMAT));
+
+        ComboBox<location.Location> locationCombo = new ComboBox<>();
+        Runnable refreshLocations = () -> {
+            if (mainWindow == null) {
+                return;
+            }
+            location.Location selectedLocation = locationCombo.getValue();
+            List<location.Location> refreshed = new ArrayList<>();
+            for (location.Location location : mainWindow.getAvailableLocations()) {
+                if (trip.getCountry() == null
+                        || location.getCountry() == null
+                        || location.getCountry().getId() == trip.getCountry().getId()) {
+                    refreshed.add(location);
+                }
+            }
+            locationCombo.getItems().setAll(refreshed);
+            if (locationCombo.getItems().isEmpty()) {
+                locationCombo.getSelectionModel().clearSelection();
+                return;
+            }
+            if (selectedLocation == null || !locationCombo.getItems().contains(selectedLocation)) {
+                locationCombo.getSelectionModel().selectFirst();
+            }
+        };
+        if (mainWindow != null) {
+            refreshLocations.run();
+            mainWindow.configureLocationComboForDelete(locationCombo, refreshLocations);
+        }
+        locationCombo.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(location.Location location) {
+                return location == null ? "" : location.toString();
+            }
+
+            @Override
+            public location.Location fromString(String string) {
+                return null;
+            }
+        });
+        if (selectedActivity.getLocation() != null && locationCombo.getItems().contains(selectedActivity.getLocation())) {
+            locationCombo.getSelectionModel().select(selectedActivity.getLocation());
+        }
+
+        Button newLocationButton = new Button("New...");
+        newLocationButton.setOnAction(e -> {
+            if (mainWindow != null) {
+                location.Location location = mainWindow.promptAddLocation();
+                if (location != null) {
+                    refreshLocations.run();
+                    locationCombo.getSelectionModel().select(location);
+                }
+            }
+        });
+        Button editLocationButton = new Button("Edit...");
+        editLocationButton.setOnAction(e -> {
+            if (mainWindow != null) {
+                location.Location edited = mainWindow.promptEditLocation(locationCombo.getValue());
+                if (edited != null) {
+                    refreshLocations.run();
+                    locationCombo.getSelectionModel().select(edited);
+                }
+            }
+        });
+        Button deleteLocationButton = new Button("Delete");
+        deleteLocationButton.setOnAction(e -> {
+            if (mainWindow != null) {
+                mainWindow.deleteLocationFromUi(locationCombo.getValue(), refreshLocations);
+            }
+        });
+
+        ComboBox<Activity.Type> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll(Activity.Type.values());
+        Activity.Type currentType = selectedActivity.getTypes().isEmpty() ? Activity.Type.OTHER : selectedActivity.getTypes().get(0);
+        typeCombo.getSelectionModel().select(currentType);
+
+        grid.add(new Label("Name:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Start Date:"), 0, 1);
+        grid.add(startDatePicker, 1, 1);
+        grid.add(new Label("Start Time (HH:mm):"), 0, 2);
+        grid.add(startTimeField, 1, 2);
+        grid.add(new Label("End Date:"), 0, 3);
+        grid.add(endDatePicker, 1, 3);
+        grid.add(new Label("End Time (HH:mm):"), 0, 4);
+        grid.add(endTimeField, 1, 4);
+        grid.add(new Label("Location:"), 0, 5);
+        grid.add(new HBox(8, locationCombo, newLocationButton, editLocationButton, deleteLocationButton), 1, 5);
+        grid.add(new Label("Type:"), 0, 6);
+        grid.add(typeCombo, 1, 6);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != saveButtonType) {
+                return;
+            }
+            try {
+                LocalDateTime start = LocalDateTime.of(startDatePicker.getValue(), parseTimeOrDefault(startTimeField.getText(), LocalTime.of(0, 0)));
+                LocalDateTime end = LocalDateTime.of(endDatePicker.getValue(), parseTimeOrDefault(endTimeField.getText(), LocalTime.of(23, 59)));
+                if (start.isAfter(end)) {
+                    throw new IllegalArgumentException("Start must not be after end");
+                }
+
+                for (Activity activity : trip.getActivities()) {
+                    if (activity == selectedActivity) {
+                        continue;
+                    }
+                    if (start.isBefore(activity.getEndDateTime()) && end.isAfter(activity.getStartDateTime())) {
+                        throw new IllegalArgumentException("Edited activity overlaps with: " + activity.getName());
+                    }
+                }
+
+                selectedActivity.setName(nameField.getText());
+                selectedActivity.setStartDateTime(start);
+                selectedActivity.setEndDateTime(end);
+                selectedActivity.setLocation(locationCombo.getValue());
+                selectedActivity.setTypes(List.of(typeCombo.getValue()));
+
+                applyActivityFilter();
+                refreshTimeline();
+                refreshExpenseList();
                 refreshTotalCost();
                 if (tripManager != null) {
                     tripManager.saveToFile();
                 }
             } catch (Exception e) {
-                // Intentionally ignored in this lightweight UI flow.
+                showError("Failed to edit activity: " + e.getMessage());
             }
         });
+    }
+
+    private void chooseImagePath(Dialog<?> dialog, TextField targetField) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Choose Image");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.webp")
+        );
+        Window window = dialog.getDialogPane().getScene() != null ? dialog.getDialogPane().getScene().getWindow() : null;
+        File file = chooser.showOpenDialog(window);
+        if (file != null) {
+            targetField.setText(file.getAbsolutePath());
+        }
     }
 
     public void showTripPage() {
@@ -618,12 +1028,75 @@ public class TripPage {
         }
     }
 
+    public Trip getTrip() {
+        return trip;
+    }
+
     private String formatDateTimeRange(LocalDateTime start, LocalDateTime end) {
-        return formatDateTime(start) + " -> " + formatDateTime(end);
+        return formatDateTime(start) + " to " + formatDateTime(end);
     }
 
     private String formatDateTime(LocalDateTime dateTime) {
         return dateTime != null ? dateTime.format(DATE_TIME_FORMAT) : "?";
+    }
+
+    private LocalTime parseTimeOrDefault(String text, LocalTime fallback) {
+        try {
+            return LocalTime.parse(text);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private void showError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private Image resolveImage(String imagePath) {
+        if (imagePath == null || imagePath.isBlank()) {
+            return null;
+        }
+
+        try {
+            String normalizedPath = imageAssetStore.normalizeImagePath(imagePath);
+            if (normalizedPath == null || normalizedPath.isBlank()) {
+                return null;
+            }
+
+            if (normalizedPath.startsWith("/images/")) {
+                InputStream stream = getClass().getResourceAsStream(normalizedPath);
+                if (stream != null) {
+                    return new Image(stream);
+                }
+                return null;
+            }
+
+            File imageFile = new File(normalizedPath);
+            if (!imageFile.exists()) {
+                return null;
+            }
+            return new Image(new FileInputStream(imageFile));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void applyDialogTheme(Dialog<?> dialog) {
+        String stylesheet = getClass().getResource("/view/theme.css").toExternalForm();
+        if (!dialog.getDialogPane().getStylesheets().contains(stylesheet)) {
+            dialog.getDialogPane().getStylesheets().add(stylesheet);
+        }
+        if (!dialog.getDialogPane().getStyleClass().contains("form-dialog")) {
+            dialog.getDialogPane().getStyleClass().add("form-dialog");
+        }
+        Window owner = dialog.getDialogPane().getScene() != null ? dialog.getDialogPane().getScene().getWindow() : null;
+        if (owner != null) {
+            owner.sizeToScene();
+        }
     }
 
     private static class DaySegment {
@@ -631,13 +1104,15 @@ public class TripPage {
         private final int startMinute;
         private final int endMinute;
         private final boolean overlaps;
+        private final boolean multiDay;
         private int lane;
 
-        private DaySegment(Activity activity, int startMinute, int endMinute, boolean overlaps) {
+        private DaySegment(Activity activity, int startMinute, int endMinute, boolean overlaps, boolean multiDay) {
             this.activity = activity;
             this.startMinute = startMinute;
             this.endMinute = endMinute;
             this.overlaps = overlaps;
+            this.multiDay = multiDay;
         }
     }
 }

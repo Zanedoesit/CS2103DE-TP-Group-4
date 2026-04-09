@@ -11,36 +11,26 @@
                     <Label text="Plan trips, track activities, and keep expenses grounded." styleClass="hero-subtitle" />
                 </VBox>
                 <Region HBox.hgrow="ALWAYS" />
-                <Button text="?" fx:id="helpButton" styleClass="help-button" />
+                <HBox spacing="8" alignment="CENTER_RIGHT" styleClass="hero-action-cluster">
+                    <Button text="?" fx:id="helpButton" styleClass="hero-action-button" />
+                </HBox>
             </HBox>
-            <FlowPane hgap="12" vgap="12" styleClass="hero-tiles" prefWrapLength="760">
-                <StackPane styleClass="image-tile tile-food">
-                    <Label text="Food" styleClass="tile-label" />
-                </StackPane>
-                <StackPane styleClass="image-tile tile-city">
-                    <Label text="City" styleClass="tile-label" />
-                </StackPane>
-                <StackPane styleClass="image-tile tile-nature">
-                    <Label text="Nature" styleClass="tile-label" />
-                </StackPane>
-                <StackPane styleClass="image-tile tile-market">
-                    <Label text="Market" styleClass="tile-label" />
-                </StackPane>
-                <StackPane styleClass="image-tile tile-culture">
-                    <Label text="Culture" styleClass="tile-label" />
-                </StackPane>
-            </FlowPane>
+            <VBox spacing="4" styleClass="hero-activity-panel">
+                <Label text="Live Activity Snapshot" styleClass="hero-panel-title" />
+                <Label fx:id="ongoingActivityLabel" styleClass="hero-panel-text" />
+                <Label fx:id="upcomingActivityLabel" styleClass="hero-panel-text" />
+            </VBox>
         </VBox>
     </top>
     <center>
-        <HBox spacing="16" alignment="TOP_LEFT" BorderPane.alignment="CENTER">
+        <HBox fx:id="homeContent" spacing="16" alignment="TOP_LEFT" BorderPane.alignment="CENTER">
             <VBox spacing="12" alignment="TOP_LEFT" styleClass="card" HBox.hgrow="ALWAYS">
                 <Label text="Trips" styleClass="section-title" />
                 <ListView fx:id="tripListView" VBox.vgrow="ALWAYS" />
                 <HBox spacing="10">
                     <Button text="Add Trip" fx:id="addTripButton" />
+                    <Button text="Edit Trip" fx:id="editTripButton" styleClass="ghost-button" />
                     <Button text="Delete Trip" fx:id="deleteTripButton" />
-                    <Button text="Add Location" fx:id="addLocationButton" />
                 </HBox>
             </VBox>
         </HBox>

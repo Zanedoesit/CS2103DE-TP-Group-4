@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 <BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="ui.ActivityPage" styleClass="app-root">
     <center>
         <VBox spacing="14" alignment="TOP_LEFT">
             <HBox spacing="16" alignment="CENTER_LEFT" styleClass="card">
-                <StackPane styleClass="image-tile tile-food small-tile">
-                    <Label text="Food" styleClass="tile-label" />
-                </StackPane>
-                <StackPane styleClass="image-tile tile-culture small-tile">
-                    <Label text="Culture" styleClass="tile-label" />
-                </StackPane>
+                <ImageView fx:id="activityImageView" fitWidth="72" fitHeight="72" preserveRatio="true" styleClass="thumb" />
                 <VBox spacing="4">
                     <Label fx:id="activityNameLabel" styleClass="page-title" />
                     <Label fx:id="activityDateLabel" styleClass="muted" />
                     <Label fx:id="activityLocationLabel" styleClass="muted" />
                 </VBox>
                 <Region HBox.hgrow="ALWAYS" />
+                <Button text="Edit Activity" fx:id="editActivityButton" styleClass="ghost-button" />
                 <Button text="Back" fx:id="backButton" styleClass="ghost-button" />
             </HBox>
             <Label text="Expenses" styleClass="section-title" />
             <ListView fx:id="expenseListView" prefHeight="200" />
-            <Button text="Add Expense" fx:id="addExpenseButton" />
+            <HBox spacing="10">
+                <Button text="Add Expense" fx:id="addExpenseButton" />
+                <Button text="Edit Expense" fx:id="editExpenseButton" styleClass="ghost-button" />
+            </HBox>
         </VBox>
     </center>
     <padding>

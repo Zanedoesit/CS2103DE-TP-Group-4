@@ -1,594 +1,1178 @@
 package ui;
 
+import activity.Activity;
+import country.Country;
+import country.CountryRepository;
+import expense.ExpenseRepository;
+import exceptions.TimeIntervalConflictException;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.scene.control.*;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.layout.BorderPane;
-import javafx.stage.Stage;
-import javafx.scene.Scene;
-import javafx.util.StringConverter;
-import javafx.scene.control.DatePicker;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import javafx.util.Callback;
+import javafx.util.StringConverter;
+import location.Location;
 import location.LocationRepository;
+import storage.ImageAssetStore;
+import trip.Trip;
+import trip.TripManager;
 
-import java.io.IOException;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import trip.Trip;
-import trip.TripManager;
-import activity.Activity;
-import expense.Expense;
-import exceptions.TripNotFoundException;
-import exceptions.ActivityNotFoundException;
-import exceptions.ExpenseNotFoundException;
-import exceptions.TimeIntervalConflictException;
 
 public class MainWindow {
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
 
-		@FXML
-		private BorderPane rootPane;
-	private final LocationRepository locationRepository = new LocationRepository();
-	@FXML
-	private ListView<Trip> tripListView;
-	@FXML
-	private ListView<Activity> activityListView;
-	@FXML
-	private ListView<Expense> expenseListView;
-	@FXML
-	private Button addTripButton;
-	@FXML
-	private Button deleteTripButton;
-	@FXML
-	private Button addLocationButton;
-	@FXML
-	private Button helpButton;
-	@FXML
-	private Button addActivityButton;
-	@FXML
-	private Button deleteActivityButton;
-	@FXML
-	private Button addExpenseButton;
-	@FXML
-	private Button deleteExpenseButton;
+    private enum PageContext {
+        HOME,
+        TRIP,
+        ACTIVITY
+    }
 
-	private TripManager tripManager = new TripManager();
-	private ObservableList<Trip> tripObservableList = FXCollections.observableArrayList();
-	private ObservableList<Activity> activityObservableList = FXCollections.observableArrayList();
-	private ObservableList<Expense> expenseObservableList = FXCollections.observableArrayList();
+    @FXML
+    private BorderPane rootPane;
+    @FXML
+    private ListView<Trip> tripListView;
+    @FXML
+    private HBox homeContent;
+    @FXML
+    private Button addTripButton;
+    @FXML
+    private Button editTripButton;
+    @FXML
+    private Button deleteTripButton;
+    @FXML
+    private Button helpButton;
+    @FXML
+    private Label ongoingActivityLabel;
+    @FXML
+    private Label upcomingActivityLabel;
 
-	@FXML
+    private final TripManager tripManager = new TripManager();
+    private final CountryRepository countryRepository = new CountryRepository();
+    private final LocationRepository locationRepository = new LocationRepository(countryRepository);
+    private final ExpenseRepository expenseRepository = new ExpenseRepository();
+    private final ImageAssetStore imageAssetStore = new ImageAssetStore();
+    private final ObservableList<Trip> tripObservableList = FXCollections.observableArrayList();
+    private PageContext currentPageContext = PageContext.HOME;
+
+    @FXML
     public void initialize() {
-		//load any previously saved trips from data/trips.json
-		try {
-			tripManager.loadFromFile();
-		} catch (java.io.IOException e) {
-			System.err.println("Could not load saved trips: " + e.getMessage());
-		}
-		locationRepository.initializeFromTrips(tripManager.getTrips());
-		showHomePage();
-	}
+        try {
+            countryRepository.load();
+            locationRepository.load();
+            expenseRepository.load();
+            tripManager.loadFromFile(countryRepository, locationRepository, expenseRepository);
+            expenseRepository.save();
+            tripManager.saveToFile();
+        } catch (IOException | IllegalStateException e) {
+            showError("Could not load saved data: " + e.getMessage());
+        }
 
-	public void showHomePage() {
-		// Set up the homepage (trip list) in the center pane
-		tripObservableList.setAll(tripManager.getTrips());
-		tripListView.setItems(tripObservableList);
-		tripListView.setPlaceholder(new Label("No trips yet. Click Add Trip to begin."));
-		// Render trips as card-like cells instead of plain table-like text.
-		tripListView.setCellFactory(list -> new ListCell<Trip>() {
-			@Override
-			protected void updateItem(Trip trip, boolean empty) {
-				super.updateItem(trip, empty);
-				if (empty || trip == null) {
-					setText(null);
-					setGraphic(null);
-				} else {
-					Label title = new Label(trip.getName());
-					title.getStyleClass().add("cell-title");
+        showHomePage();
 
-					Label subtitle = new Label(formatDateTimeRange(trip.getStartDateTime(), trip.getEndDateTime()));
-					subtitle.getStyleClass().add("cell-subtitle");
+        if (helpButton != null) {
+            helpButton.setOnAction(e -> showGuideForCurrentPage());
+        }
+        refreshHeaderActivitySummary();
+    }
 
-					String locationText = trip.getLocation() != null ? trip.getLocation().toString() : "No location";
-					Label meta = new Label(locationText + " | " + trip.getActivities().size() + " activities");
-					meta.getStyleClass().add("cell-meta");
-					meta.setWrapText(true);
+    public void showHomePage() {
+        currentPageContext = PageContext.HOME;
+        tripObservableList.setAll(tripManager.getTrips());
+        tripListView.setItems(tripObservableList);
+        tripListView.setPlaceholder(new Label("No trips yet. Click Add Trip to begin."));
+        tripListView.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(Trip trip, boolean empty) {
+                super.updateItem(trip, empty);
+                if (empty || trip == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
 
-					VBox card = new VBox(3, title, subtitle, meta);
-					card.getStyleClass().add("friendly-cell");
-					card.setMaxWidth(Double.MAX_VALUE);
-					setText(null);
-					setGraphic(card);
-				}
-			}
-		});
-		addTripButton.setVisible(true);
-		deleteTripButton.setVisible(true);
-		if (addLocationButton != null) {
-			addLocationButton.setVisible(true);
-			addLocationButton.setOnAction(e -> handleAddLocation());
-		}
-		if (helpButton != null) {
-			helpButton.setOnAction(e -> showUserGuide());
-		}
-		rootPane.setCenter(tripListView.getParent().getParent());
-		addTripButton.setOnAction(e -> handleAddTrip());
-		deleteTripButton.setOnAction(e -> handleDeleteTrip());
-		tripListView.setOnMouseClicked(event -> {
-			Trip selected = tripListView.getSelectionModel().getSelectedItem();
-			if (selected != null && event.getClickCount() == 2) {
-				showTripPage(selected);
-			}
-		});
-	}
+                ImageView imageView = new ImageView();
+                imageView.setFitHeight(52);
+                imageView.setFitWidth(52);
+                imageView.setPreserveRatio(true);
+                imageView.getStyleClass().add("thumb");
+                Image image = resolveImage(trip.getCountry() != null ? trip.getCountry().getImagePath() : null);
+                if (image != null) {
+                    imageView.setImage(image);
+                }
 
-	public void showTripPage(Trip trip) {
-		try {
-			FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/TripPage.fxml"));
-			BorderPane tripPage = loader.load();
-			TripPage controller = loader.getController();
-			controller.setTrip(trip);
-			controller.setMainWindow(this);
-			controller.setTripManager(tripManager);
-			rootPane.setCenter(tripPage);
-		} catch (Exception e) {
-			showError("Failed to load trip page: " + e.getMessage());
-		}
-	}
+                Label title = new Label(trip.getName());
+                title.getStyleClass().add("cell-title");
 
-	public void showActivityPage(Activity activity, TripPage tripPage) {
-		try {
-			FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/ActivityPage.fxml"));
-			BorderPane activityPage = loader.load();
-			ActivityPage controller = loader.getController();
-			controller.setActivity(activity);
-			controller.setTripPage(tripPage);
-			controller.setTripManager(tripManager);
-			rootPane.setCenter(activityPage);
-		} catch (Exception e) {
-			showError("Failed to load activity page: " + e.getMessage());
-		}
-	}
+                Label subtitle = new Label(formatDateTimeRange(trip.getStartDateTime(), trip.getEndDateTime()));
+                subtitle.getStyleClass().add("cell-subtitle");
 
+                String countryText = trip.getCountry() != null ? trip.getCountry().getName() : "No country";
+                Label countryMeta = new Label("Country: " + countryText);
+                countryMeta.getStyleClass().add("cell-meta");
+                Label activityMeta = new Label("Activities: " + trip.getActivities().size());
+                activityMeta.getStyleClass().add("cell-meta");
 
-	private void handleAddTrip() {
-		Dialog<Trip> dialog = new Dialog<>();
-		dialog.setTitle("Add Trip");
-		dialog.setHeaderText("Enter trip details");
-		ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
-		dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+                VBox textBox = new VBox(3, title, subtitle, countryMeta, activityMeta);
+                HBox card = new HBox(10, imageView, textBox);
+                card.getStyleClass().add("friendly-cell");
+                card.setMaxWidth(Double.MAX_VALUE);
 
-		GridPane grid = new GridPane();
-		grid.setHgap(10);
-		grid.setVgap(10);
+                setText(null);
+                setGraphic(card);
+            }
+        });
 
-		TextField nameField = new TextField();
-		DatePicker startDatePicker = new DatePicker(LocalDate.now());
-		DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(3));
-		TextField startTimeField = new TextField("09:00");
-		TextField endTimeField = new TextField("18:00");
-		ComboBox<location.Location> locationCombo = new ComboBox<>();
-		locationCombo.getItems().addAll(locationRepository.getLocations());
-		locationCombo.setConverter(createLocationConverter());
-		if (!locationCombo.getItems().isEmpty()) {
-			locationCombo.getSelectionModel().selectFirst();
-		}
-		Button newLocationButton = new Button("New...");
-		newLocationButton.setOnAction(e -> {
-			Window owner = dialog.getDialogPane().getScene() != null
-					? dialog.getDialogPane().getScene().getWindow()
-					: (rootPane.getScene() != null ? rootPane.getScene().getWindow() : null);
-			location.Location newLocation = openAddLocationDialog(owner);
-			if (newLocation != null) {
-				locationCombo.getItems().setAll(locationRepository.getLocations());
-				locationCombo.getSelectionModel().select(newLocation);
-			}
-		});
-		HBox locationRow = new HBox(8, locationCombo, newLocationButton);
+        addTripButton.setOnAction(e -> handleAddTrip());
+        if (editTripButton != null) {
+            editTripButton.setOnAction(e -> handleEditTrip());
+        }
+        deleteTripButton.setOnAction(e -> handleDeleteTrip());
+        tripListView.setOnMouseClicked(event -> {
+            Trip selected = tripListView.getSelectionModel().getSelectedItem();
+            if (selected != null && event.getClickCount() == 2) {
+                showTripPage(selected);
+            }
+        });
 
-		grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
-		grid.add(new Label("Start Date:"), 0, 1); grid.add(startDatePicker, 1, 1);
-		grid.add(new Label("Start Time (HH:mm):"), 0, 2); grid.add(startTimeField, 1, 2);
-		grid.add(new Label("End Date:"), 0, 3); grid.add(endDatePicker, 1, 3);
-		grid.add(new Label("End Time (HH:mm):"), 0, 4); grid.add(endTimeField, 1, 4);
-		grid.add(new Label("Location:"), 0, 5); grid.add(locationRow, 1, 5);
+        if (homeContent != null) {
+            rootPane.setCenter(homeContent);
+        }
+        refreshHeaderActivitySummary();
+    }
 
-		dialog.getDialogPane().setContent(grid);
-		dialog.setResultConverter(dialogButton -> {
-			if (dialogButton == addButtonType) {
-				try {
-					String name = nameField.getText();
-					LocalDate startDate = startDatePicker.getValue();
-					LocalDate endDate = endDatePicker.getValue();
-					LocalTime startTime = null;
-					LocalTime endTime = null;
-					try {
-						startTime = LocalTime.parse(startTimeField.getText());
-					} catch (Exception e) {
-						startTime = LocalTime.of(0, 0);
-					}
-					try {
-						endTime = LocalTime.parse(endTimeField.getText());
-					} catch (Exception e) {
-						endTime = LocalTime.of(23, 59);
-					}
-					LocalDateTime start = (startDate != null) ? LocalDateTime.of(startDate, startTime) : null;
-					LocalDateTime end = (endDate != null) ? LocalDateTime.of(endDate, endTime) : null;
-					location.Location loc = locationCombo.getValue();
-					return new Trip(tripObservableList.size() + 1, name, start, end, loc);
-				} catch (Exception ex) {
-					showError("Invalid input: " + ex.getMessage());
-				}
-			}
-			return null;
-		});
-		dialog.showAndWait().ifPresent(trip -> {
-			try {
-				tripManager.addTrip(trip);
-				tripManager.saveToFile();
-				tripObservableList.setAll(tripManager.getTrips());
-			} catch (TimeIntervalConflictException e) {
-				showError("Trip time conflict: " + e.getMessage());
-			} catch (java.io.IOException e) {
-				showError("Failed to save: " + e.getMessage());
-			}
-		});
-	}
+    public void showTripPage(Trip trip) {
+        currentPageContext = PageContext.TRIP;
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/TripPage.fxml"));
+            BorderPane tripPage = loader.load();
+            TripPage controller = loader.getController();
+            controller.setTrip(trip);
+            controller.setMainWindow(this);
+            controller.setTripManager(tripManager);
+            controller.setExpenseRepository(expenseRepository);
+            rootPane.setCenter(tripPage);
+        } catch (Exception e) {
+            showError("Failed to load trip page: " + e.getMessage());
+        }
+    }
 
-	private void handleDeleteTrip() {
-		Trip selected = tripListView.getSelectionModel().getSelectedItem();
-		if (selected != null) {
-			try {
-				tripManager.deleteTripById(selected.getId());
-				tripManager.saveToFile();
-				tripObservableList.setAll(tripManager.getTrips());
-				activityObservableList.clear();
-				expenseObservableList.clear();
-			} catch (Exception e) {
-				showError("Failed to delete trip: " + e.getMessage());
-			}
-		}
-	}
+    public void showActivityPage(Activity activity, TripPage tripPage) {
+        currentPageContext = PageContext.ACTIVITY;
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/ActivityPage.fxml"));
+            BorderPane activityPage = loader.load();
+            ActivityPage controller = loader.getController();
+            controller.setActivity(activity);
+            controller.setTripPage(tripPage);
+            controller.setTripManager(tripManager);
+            controller.setMainWindow(this);
+            controller.setExpenseRepository(expenseRepository);
+            rootPane.setCenter(activityPage);
+        } catch (Exception e) {
+            showError("Failed to load activity page: " + e.getMessage());
+        }
+    }
 
-	private void handleAddActivity() {
-		Trip selectedTrip = tripListView.getSelectionModel().getSelectedItem();
-		if (selectedTrip == null) return;
-		Dialog<Activity> dialog = new Dialog<>();
-		dialog.setTitle("Add Activity");
-		dialog.setHeaderText("Enter activity details");
-		ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
-		dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+    public List<Country> getAvailableCountries() {
+        return countryRepository.getCountries();
+    }
 
-		GridPane grid = new GridPane();
-		grid.setHgap(10);
-		grid.setVgap(10);
+    public List<Location> getAvailableLocations() {
+        return locationRepository.getLocations();
+    }
 
-		TextField nameField = new TextField();
-		DatePicker startDatePicker = new DatePicker(selectedTrip.getStartDateTime().toLocalDate());
-		DatePicker endDatePicker = new DatePicker(selectedTrip.getEndDateTime().toLocalDate());
-		TextField startTimeField = new TextField("10:00");
-		TextField endTimeField = new TextField("12:00");
-		ComboBox<location.Location> locationCombo = new ComboBox<>();
-		locationCombo.getItems().addAll(locationRepository.getLocations());
-		locationCombo.setConverter(createLocationConverter());
-		if (!locationCombo.getItems().isEmpty()) {
-			locationCombo.getSelectionModel().selectFirst();
-		}
-		Button newLocationButton = new Button("New...");
-		newLocationButton.setOnAction(e -> {
-			Window owner = dialog.getDialogPane().getScene() != null
-					? dialog.getDialogPane().getScene().getWindow()
-					: (rootPane.getScene() != null ? rootPane.getScene().getWindow() : null);
-			location.Location newLocation = openAddLocationDialog(owner);
-			if (newLocation != null) {
-				locationCombo.getItems().setAll(locationRepository.getLocations());
-				locationCombo.getSelectionModel().select(newLocation);
-			}
-		});
-		HBox locationRow = new HBox(8, locationCombo, newLocationButton);
+    public Country promptAddCountry() {
+        Window owner = rootPane.getScene() != null ? rootPane.getScene().getWindow() : null;
+        Country country = openAddCountryDialog(owner);
+        if (country != null) {
+            saveLookupStores();
+        }
+        return country;
+    }
 
-		grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
-		grid.add(new Label("Start Date:"), 0, 1); grid.add(startDatePicker, 1, 1);
-		grid.add(new Label("Start Time (HH:mm):"), 0, 2); grid.add(startTimeField, 1, 2);
-		grid.add(new Label("End Date:"), 0, 3); grid.add(endDatePicker, 1, 3);
-		grid.add(new Label("End Time (HH:mm):"), 0, 4); grid.add(endTimeField, 1, 4);
-		grid.add(new Label("Location:"), 0, 5); grid.add(locationRow, 1, 5);
+    public Location promptAddLocation() {
+        Window owner = rootPane.getScene() != null ? rootPane.getScene().getWindow() : null;
+        Location location = openAddLocationDialog(owner);
+        if (location != null) {
+            saveLookupStores();
+        }
+        return location;
+    }
 
-		dialog.getDialogPane().setContent(grid);
-		dialog.setResultConverter(dialogButton -> {
-			if (dialogButton == addButtonType) {
-				try {
-					String name = nameField.getText();
-					LocalDateTime start = LocalDateTime.of(startDatePicker.getValue(), LocalTime.parse(startTimeField.getText()));
-					LocalDateTime end = LocalDateTime.of(endDatePicker.getValue(), LocalTime.parse(endTimeField.getText()));
-					location.Location loc = locationCombo.getValue();
-					return new Activity(activityObservableList.size() + 1, name, start, end, loc);
-				} catch (Exception ex) {
-					showError("Invalid input: " + ex.getMessage());
-				}
-			}
-			return null;
-		});
-		dialog.showAndWait().ifPresent(activity -> {
-			try {
-				selectedTrip.addActivity(activity);
-				tripManager.saveToFile();
-				activityObservableList.setAll(selectedTrip.getActivities());
-			} catch (TimeIntervalConflictException e) {
-				showError("Activity time conflict: " + e.getMessage());
-			} catch (java.io.IOException e) {
-				showError("Failed to save: " + e.getMessage());
-			}
-		});
-	}
+    public Country promptEditCountry(Country country) {
+        if (country == null) {
+            showError("Please select a country to edit.");
+            return null;
+        }
+        Window owner = rootPane.getScene() != null ? rootPane.getScene().getWindow() : null;
+        Country updated = openEditCountryDialog(owner, country);
+        if (updated != null) {
+            saveLookupStores();
+        }
+        return updated;
+    }
 
-	private void handleDeleteActivity() {
-		Trip selectedTrip = tripListView.getSelectionModel().getSelectedItem();
-		Activity selectedActivity = activityListView.getSelectionModel().getSelectedItem();
-		if (selectedTrip != null && selectedActivity != null) {
-			try {
-				selectedTrip.deleteActivityById(selectedActivity.getId());
-				tripManager.saveToFile();
-				activityObservableList.setAll(selectedTrip.getActivities());
-				expenseObservableList.clear();
-			} catch (ActivityNotFoundException e) {
-				showError("Failed to delete activity: " + e.getMessage());
-			} catch (java.io.IOException e) {
-				showError("Failed to save: " + e.getMessage());
-			}
-		}
-	}
+    public Location promptEditLocation(Location location) {
+        if (location == null) {
+            showError("Please select a location to edit.");
+            return null;
+        }
+        Window owner = rootPane.getScene() != null ? rootPane.getScene().getWindow() : null;
+        Location updated = openEditLocationDialog(owner, location);
+        if (updated != null) {
+            saveLookupStores();
+        }
+        return updated;
+    }
 
-	private void handleAddExpense() {
-		Trip selectedTrip = tripListView.getSelectionModel().getSelectedItem();
-		if (selectedTrip == null) return;
-		Activity selectedActivity = activityListView.getSelectionModel().getSelectedItem();
-		Dialog<Expense> dialog = new Dialog<>();
-		dialog.setTitle("Add Expense");
-		dialog.setHeaderText("Enter expense details");
-		ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
-		dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+    public boolean deleteCountryFromUi(Country country, Runnable onDataChanged) {
+        if (country == null) {
+            showError("Please select a country to delete.");
+            return false;
+        }
+        return attemptDeleteCountry(country, onDataChanged);
+    }
 
-		GridPane grid = new GridPane();
-		grid.setHgap(10);
-		grid.setVgap(10);
+    public boolean deleteLocationFromUi(Location location, Runnable onDataChanged) {
+        if (location == null) {
+            showError("Please select a location to delete.");
+            return false;
+        }
+        return attemptDeleteLocation(location, onDataChanged);
+    }
 
-		TextField nameField = new TextField();
-		TextField costField = new TextField("100.0");
-		ComboBox<Expense.Currency> currencyCombo = new ComboBox<>();
-		currencyCombo.getItems().addAll(Expense.Currency.values());
-		currencyCombo.getSelectionModel().selectFirst();
-		ComboBox<Expense.Type> typeCombo = new ComboBox<>();
-		typeCombo.getItems().addAll(Expense.Type.values());
-		typeCombo.getSelectionModel().selectFirst();
+    public void showTripGuide() {
+        showGuideDialog("Trip Page Guide", "Trip page controls",
+                "Use this page to review timeline, activities, and expenses.\n"
+                + "- Top ? button: open this guide.\n"
+                + "- Use the New... buttons inside forms to add countries/locations.\n"
+                        + "- Timeline shows whole activities only per day (no partial clipping).\n"
+                        + "- Filter activities by type from the dropdown.");
+    }
 
-		grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
-		grid.add(new Label("Cost:"), 0, 1); grid.add(costField, 1, 1);
-		grid.add(new Label("Currency:"), 0, 2); grid.add(currencyCombo, 1, 2);
-		grid.add(new Label("Type:"), 0, 3); grid.add(typeCombo, 1, 3);
+    public void showActivityGuide() {
+        showGuideDialog("Activity Page Guide", "Activity expense controls",
+                "Use this page to manage expenses linked to one activity.\n"
+                        + "- Top ? button: open this guide.\n"
+                + "- Use the New... buttons inside forms to add countries/locations.\n"
+                        + "- Add Expense to attach costs to the current activity.");
+    }
 
-		dialog.getDialogPane().setContent(grid);
-		dialog.setResultConverter(dialogButton -> {
-			if (dialogButton == addButtonType) {
-				try {
-					String name = nameField.getText();
-					float cost = Float.parseFloat(costField.getText());
-					Expense.Currency currency = currencyCombo.getValue();
-					Expense.Type type = typeCombo.getValue();
-					return new Expense(expenseObservableList.size() + 1, name, cost, currency, type);
-				} catch (Exception ex) {
-					showError("Invalid input: " + ex.getMessage());
-				}
-			}
-			return null;
-		});
-		dialog.showAndWait().ifPresent(expense -> {
-			if (selectedActivity != null) {
-				selectedActivity.addExpense(expense);
-				expenseObservableList.setAll(selectedActivity.getExpenses());
-			} else {
-				selectedTrip.addExpense(expense);
-				expenseObservableList.setAll(selectedTrip.getExpenses());
-			}
-			try {
-				tripManager.saveToFile();
-			} catch (java.io.IOException e) {
-				showError("Failed to save: " + e.getMessage());
-			}
-		});
-	}
+    private void showGuideForCurrentPage() {
+        switch (currentPageContext) {
+        case TRIP:
+            showTripGuide();
+            break;
+        case ACTIVITY:
+            showActivityGuide();
+            break;
+        case HOME:
+        default:
+            showHomeGuide();
+            break;
+        }
+    }
 
-	private void handleDeleteExpense() {
-		Trip selectedTrip = tripListView.getSelectionModel().getSelectedItem();
-		Activity selectedActivity = activityListView.getSelectionModel().getSelectedItem();
-		Expense selectedExpense = expenseListView.getSelectionModel().getSelectedItem();
-		if (selectedExpense == null) return;
-		try {
-			if (selectedActivity != null) {
-				selectedActivity.deleteExpenseById(selectedExpense.getId());
-				expenseObservableList.setAll(selectedActivity.getExpenses());
-			} else if (selectedTrip != null) {
-				selectedTrip.deleteExpenseById(selectedExpense.getId());
-				expenseObservableList.setAll(selectedTrip.getExpenses());
-			}
-			tripManager.saveToFile();
-		} catch (ExpenseNotFoundException e) {
-			showError("Failed to delete expense: " + e.getMessage());
-		} catch (java.io.IOException e) {
-			showError("Failed to save: " + e.getMessage());
-		}
-	}
+    private void handleAddTrip() {
+        Dialog<Trip> dialog = new Dialog<>();
+        dialog.setTitle("Add Trip");
+        dialog.setHeaderText("Enter trip details");
+        applyDialogTheme(dialog, "form-dialog");
+        ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
 
-	private void showError(String message) {
-		Alert alert = new Alert(Alert.AlertType.ERROR);
-		alert.setTitle("Error");
-		alert.setHeaderText(null);
-		alert.setContentText(message);
-		alert.showAndWait();
-	}
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
 
-	private void handleAddLocation() {
-		Window owner = rootPane.getScene() != null ? rootPane.getScene().getWindow() : null;
-		location.Location location = openAddLocationDialog(owner);
-		if (location != null) {
-			Alert info = new Alert(Alert.AlertType.INFORMATION);
-			info.setTitle("Location Added");
-			info.setHeaderText(null);
-			info.setContentText("Added location: " + location);
-			info.showAndWait();
-		}
-	}
+        TextField nameField = new TextField();
+        DatePicker startDatePicker = new DatePicker(LocalDate.now());
+        DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(3));
+        TextField startTimeField = new TextField("09:00");
+        TextField endTimeField = new TextField("18:00");
 
-	private location.Location openAddLocationDialog(Window owner) {
-		Dialog<location.Location> dialog = new Dialog<>();
-		dialog.setTitle("Add Location");
-		dialog.setHeaderText("Enter location details (only name is required)");
-		if (owner != null) {
-			dialog.initOwner(owner);
-		}
+        ComboBox<Country> countryCombo = new ComboBox<>();
+        Runnable refreshCountries = () -> {
+            Country selectedCountry = countryCombo.getValue();
+            countryCombo.getItems().setAll(countryRepository.getCountries());
+            if (countryCombo.getItems().isEmpty()) {
+                countryCombo.getSelectionModel().clearSelection();
+                return;
+            }
+            if (selectedCountry == null || !countryCombo.getItems().contains(selectedCountry)) {
+                countryCombo.getSelectionModel().selectFirst();
+            }
+        };
+        refreshCountries.run();
+        countryCombo.setConverter(createCountryConverter());
+        configureCountryComboForDelete(countryCombo, refreshCountries);
+        if (!countryCombo.getItems().isEmpty()) {
+            countryCombo.getSelectionModel().selectFirst();
+        }
 
-		ButtonType addButtonType = new ButtonType("Add Location", ButtonBar.ButtonData.OK_DONE);
-		dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+        Button newCountryButton = new Button("New...");
+        newCountryButton.setOnAction(e -> {
+            Country country = openAddCountryDialog(dialog.getDialogPane().getScene().getWindow());
+            if (country != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(country);
+            }
+        });
 
-		GridPane grid = new GridPane();
-		grid.setHgap(10);
-		grid.setVgap(10);
+        Button editCountryButton = new Button("Edit...");
+        editCountryButton.setOnAction(e -> {
+            Country edited = promptEditCountry(countryCombo.getValue());
+            if (edited != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(edited);
+            }
+        });
 
-		TextField nameField = new TextField();
-		TextField cityField = new TextField();
-		TextField countryField = new TextField();
-		TextField addressField = new TextField();
-		TextField latitudeField = new TextField();
-		TextField longitudeField = new TextField();
-		TextField imagePathField = new TextField();
-		imagePathField.setEditable(false);
-		Button uploadButton = new Button("Upload Image...");
+        Button deleteCountryButton = new Button("Delete");
+        deleteCountryButton.setOnAction(e -> deleteCountryFromUi(countryCombo.getValue(), refreshCountries));
 
-		uploadButton.setOnAction(e -> {
-			FileChooser chooser = new FileChooser();
-			chooser.setTitle("Choose Location Image");
-			chooser.getExtensionFilters().addAll(
-				new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.webp")
-			);
-			File file = chooser.showOpenDialog(dialog.getDialogPane().getScene().getWindow());
-			if (file != null) {
-				imagePathField.setText(file.getAbsolutePath());
-			}
-		});
+        grid.add(new Label("Name*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Start Date"), 0, 1);
+        grid.add(startDatePicker, 1, 1);
+        grid.add(new Label("Start Time (HH:mm)"), 0, 2);
+        grid.add(startTimeField, 1, 2);
+        grid.add(new Label("End Date"), 0, 3);
+        grid.add(endDatePicker, 1, 3);
+        grid.add(new Label("End Time (HH:mm)"), 0, 4);
+        grid.add(endTimeField, 1, 4);
+        grid.add(new Label("Country"), 0, 5);
+        grid.add(new HBox(8, countryCombo, newCountryButton, editCountryButton, deleteCountryButton), 1, 5);
 
-		grid.add(new Label("Name*"), 0, 0); grid.add(nameField, 1, 0);
-		grid.add(new Label("City"), 0, 1); grid.add(cityField, 1, 1);
-		grid.add(new Label("Country"), 0, 2); grid.add(countryField, 1, 2);
-		grid.add(new Label("Address"), 0, 3); grid.add(addressField, 1, 3);
-		grid.add(new Label("Latitude"), 0, 4); grid.add(latitudeField, 1, 4);
-		grid.add(new Label("Longitude"), 0, 5); grid.add(longitudeField, 1, 5);
-		grid.add(new Label("Image"), 0, 6); grid.add(new HBox(8, imagePathField, uploadButton), 1, 6);
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton != addButtonType) {
+                return null;
+            }
+            try {
+                String name = nameField.getText();
+                LocalDateTime start = LocalDateTime.of(startDatePicker.getValue(), parseTimeOrDefault(startTimeField.getText(), LocalTime.of(0, 0)));
+                LocalDateTime end = LocalDateTime.of(endDatePicker.getValue(), parseTimeOrDefault(endTimeField.getText(), LocalTime.of(23, 59)));
+                Country country = countryCombo.getValue();
+                if (country == null) {
+                    throw new IllegalArgumentException("Country is required");
+                }
+                return new Trip(tripManager.nextAvailableId(), name, start, end, country);
+            } catch (Exception ex) {
+                showError("Invalid input: " + ex.getMessage());
+                return null;
+            }
+        });
 
-		dialog.getDialogPane().setContent(grid);
-		dialog.setResultConverter(dialogButton -> {
-			if (dialogButton != addButtonType) {
-				return null;
-			}
+        dialog.showAndWait().ifPresent(trip -> {
+            try {
+                tripManager.addTrip(trip);
+                tripManager.saveToFile();
+                tripObservableList.setAll(tripManager.getTrips());
+                refreshHeaderActivitySummary();
+            } catch (IllegalArgumentException e) {
+                showError("Invalid trip: " + e.getMessage());
+            } catch (TimeIntervalConflictException e) {
+                showError("Trip time conflict: " + e.getMessage());
+            } catch (IOException e) {
+                showError("Failed to save: " + e.getMessage());
+            }
+        });
+    }
 
-			String name = nameField.getText() != null ? nameField.getText().trim() : "";
-			if (name.isBlank()) {
-				showError("Location name is required.");
-				return null;
-			}
+    private void handleDeleteTrip() {
+        Trip selected = tripListView.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            return;
+        }
+        try {
+            tripManager.deleteTripById(selected.getId());
+            tripManager.saveToFile();
+            tripObservableList.setAll(tripManager.getTrips());
+            refreshHeaderActivitySummary();
+        } catch (Exception e) {
+            showError("Failed to delete trip: " + e.getMessage());
+        }
+    }
 
-			Double latitude = parseOptionalDouble(latitudeField.getText());
-			Double longitude = parseOptionalDouble(longitudeField.getText());
-			if ((latitude == null) != (longitude == null)) {
-				showError("Latitude and longitude should either both be provided or both be blank.");
-				return null;
-			}
+    private void handleEditTrip() {
+        Trip selected = tripListView.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showError("Please select a trip to edit.");
+            return;
+        }
 
-			return locationRepository.addLocation(
-				name,
-				normalizeOptional(addressField.getText()),
-				normalizeOptional(cityField.getText()),
-				normalizeOptional(countryField.getText()),
-				latitude,
-				longitude,
-				normalizeOptional(imagePathField.getText())
-			);
-		});
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Trip");
+        dialog.setHeaderText("Update trip details");
+        applyDialogTheme(dialog, "form-dialog");
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
 
-		return dialog.showAndWait().orElse(null);
-	}
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
 
-	private void showUserGuide() {
-		Alert guide = new Alert(Alert.AlertType.INFORMATION);
-		guide.setTitle("User Guide");
-		guide.setHeaderText("Quick Guide");
-		guide.setContentText(
-			"1. Add a trip with dates and location.\n"
-			+ "2. Double-click a trip to open itinerary details.\n"
-			+ "3. Add activities and expenses inside a trip.\n"
-			+ "4. Use the type filter to narrow activities.\n"
-			+ "5. Use Add Location to create reusable locations with optional image/details."
-		);
-		guide.showAndWait();
-	}
+        TextField nameField = new TextField(selected.getName());
+        DatePicker startDatePicker = new DatePicker(selected.getStartDateTime().toLocalDate());
+        DatePicker endDatePicker = new DatePicker(selected.getEndDateTime().toLocalDate());
+        TextField startTimeField = new TextField(selected.getStartDateTime().toLocalTime().toString());
+        TextField endTimeField = new TextField(selected.getEndDateTime().toLocalTime().toString());
 
-	private StringConverter<location.Location> createLocationConverter() {
-		return new StringConverter<>() {
-			@Override
-			public String toString(location.Location location) {
-				return location == null ? "" : location.toString();
-			}
+        ComboBox<Country> countryCombo = new ComboBox<>();
+        Runnable refreshCountries = () -> {
+            Country selectedCountry = countryCombo.getValue();
+            countryCombo.getItems().setAll(countryRepository.getCountries());
+            if (countryCombo.getItems().isEmpty()) {
+                countryCombo.getSelectionModel().clearSelection();
+                return;
+            }
+            if (selectedCountry == null || !countryCombo.getItems().contains(selectedCountry)) {
+                countryCombo.getSelectionModel().selectFirst();
+            }
+        };
+        refreshCountries.run();
+        countryCombo.setConverter(createCountryConverter());
+        configureCountryComboForDelete(countryCombo, refreshCountries);
+        if (selected.getCountry() != null && countryCombo.getItems().contains(selected.getCountry())) {
+            countryCombo.getSelectionModel().select(selected.getCountry());
+        }
 
-			@Override
-			public location.Location fromString(String string) {
-				return null;
-			}
-		};
-	}
+        Button newCountryButton = new Button("New...");
+        newCountryButton.setOnAction(e -> {
+            Country created = promptAddCountry();
+            if (created != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(created);
+            }
+        });
 
-	private Double parseOptionalDouble(String text) {
-		String value = normalizeOptional(text);
-		if (value == null) {
-			return null;
-		}
-		try {
-			return Double.parseDouble(value);
-		} catch (Exception e) {
-			return null;
-		}
-	}
+        Button editCountryButton = new Button("Edit...");
+        editCountryButton.setOnAction(e -> {
+            Country edited = promptEditCountry(countryCombo.getValue());
+            if (edited != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(edited);
+            }
+        });
 
-	private String normalizeOptional(String value) {
-		if (value == null) {
-			return null;
-		}
-		String trimmed = value.trim();
-		return trimmed.isEmpty() ? null : trimmed;
-	}
+        Button deleteCountryButton = new Button("Delete");
+        deleteCountryButton.setOnAction(e -> deleteCountryFromUi(countryCombo.getValue(), refreshCountries));
 
-	public List<location.Location> getAvailableLocations() {
-		return locationRepository.getLocations();
-	}
+        grid.add(new Label("Name*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Start Date"), 0, 1);
+        grid.add(startDatePicker, 1, 1);
+        grid.add(new Label("Start Time (HH:mm)"), 0, 2);
+        grid.add(startTimeField, 1, 2);
+        grid.add(new Label("End Date"), 0, 3);
+        grid.add(endDatePicker, 1, 3);
+        grid.add(new Label("End Time (HH:mm)"), 0, 4);
+        grid.add(endTimeField, 1, 4);
+        grid.add(new Label("Country"), 0, 5);
+        grid.add(new HBox(8, countryCombo, newCountryButton, editCountryButton, deleteCountryButton), 1, 5);
 
-	public location.Location promptAddLocation() {
-		Window owner = rootPane.getScene() != null ? rootPane.getScene().getWindow() : null;
-		return openAddLocationDialog(owner);
-	}
+        dialog.getDialogPane().setContent(grid);
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != saveButtonType) {
+                return;
+            }
+            try {
+                Country updatedCountry = countryCombo.getValue();
+                if (updatedCountry == null) {
+                    throw new IllegalArgumentException("Country is required");
+                }
+                LocalDateTime start = LocalDateTime.of(startDatePicker.getValue(), parseTimeOrDefault(startTimeField.getText(), LocalTime.of(0, 0)));
+                LocalDateTime end = LocalDateTime.of(endDatePicker.getValue(), parseTimeOrDefault(endTimeField.getText(), LocalTime.of(23, 59)));
+                tripManager.updateTrip(selected.getId(), nameField.getText(), start, end, updatedCountry);
+                tripManager.saveToFile();
+                tripObservableList.setAll(tripManager.getTrips());
+                refreshHeaderActivitySummary();
+            } catch (Exception e) {
+                showError("Failed to edit trip: " + e.getMessage());
+            }
+        });
+    }
 
-	private String formatDateTimeRange(LocalDateTime start, LocalDateTime end) {
-		return formatDateTime(start) + " -> " + formatDateTime(end);
-	}
+    private Country openAddCountryDialog(Window owner) {
+        Dialog<Country> dialog = new Dialog<>();
+        dialog.setTitle("Add Country");
+        dialog.setHeaderText("Enter country details (name required)");
+        applyDialogTheme(dialog, "form-dialog");
+        if (owner != null) {
+            dialog.initOwner(owner);
+        }
 
-	private String formatDateTime(LocalDateTime dateTime) {
-		return dateTime != null ? dateTime.format(DATE_TIME_FORMAT) : "?";
-	}
+        ButtonType addButtonType = new ButtonType("Add Country", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField nameField = new TextField();
+        TextField continentField = new TextField();
+        TextField imagePathField = new TextField();
+        imagePathField.setEditable(false);
+        Button uploadButton = new Button("Upload Image...");
+        uploadButton.setOnAction(e -> chooseImagePath(dialog, imagePathField));
+
+        grid.add(new Label("Name*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Continent"), 0, 1);
+        grid.add(continentField, 1, 1);
+        grid.add(new Label("Image"), 0, 2);
+        grid.add(new HBox(8, imagePathField, uploadButton), 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton != addButtonType) {
+                return null;
+            }
+            try {
+                return countryRepository.addCountry(nameField.getText(), continentField.getText(), imagePathField.getText());
+            } catch (Exception ex) {
+                showError("Invalid country: " + ex.getMessage());
+                return null;
+            }
+        });
+
+        return dialog.showAndWait().orElse(null);
+    }
+
+    private Country openEditCountryDialog(Window owner, Country country) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Country");
+        dialog.setHeaderText("Update country details");
+        applyDialogTheme(dialog, "form-dialog");
+        if (owner != null) {
+            dialog.initOwner(owner);
+        }
+
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField nameField = new TextField(country.getName());
+        TextField continentField = new TextField(country.getContinent() == null ? "" : country.getContinent());
+        TextField imagePathField = new TextField(country.getImagePath() == null ? "" : country.getImagePath());
+        imagePathField.setEditable(false);
+        Button uploadButton = new Button("Upload Image...");
+        uploadButton.setOnAction(e -> chooseImagePath(dialog, imagePathField));
+
+        grid.add(new Label("Name*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Continent"), 0, 1);
+        grid.add(continentField, 1, 1);
+        grid.add(new Label("Image"), 0, 2);
+        grid.add(new HBox(8, imagePathField, uploadButton), 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+        final boolean[] updated = new boolean[]{false};
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != saveButtonType) {
+                return;
+            }
+            try {
+                countryRepository.updateCountry(country.getId(), nameField.getText(), continentField.getText(), imagePathField.getText());
+                updated[0] = true;
+            } catch (Exception e) {
+                showError("Invalid country: " + e.getMessage());
+            }
+        });
+
+        return updated[0] ? countryRepository.findById(country.getId()) : null;
+    }
+
+    private Location openAddLocationDialog(Window owner) {
+        Dialog<Location> dialog = new Dialog<>();
+        dialog.setTitle("Add Location");
+        dialog.setHeaderText("Enter location details (name required)");
+        applyDialogTheme(dialog, "form-dialog");
+        if (owner != null) {
+            dialog.initOwner(owner);
+        }
+
+        ButtonType addButtonType = new ButtonType("Add Location", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField nameField = new TextField();
+        TextField cityField = new TextField();
+        TextField addressField = new TextField();
+        TextField latitudeField = new TextField();
+        TextField longitudeField = new TextField();
+        TextField imagePathField = new TextField();
+        imagePathField.setEditable(false);
+
+        ComboBox<Country> countryCombo = new ComboBox<>();
+        Runnable refreshCountries = () -> {
+            Country selectedCountry = countryCombo.getValue();
+            countryCombo.getItems().setAll(countryRepository.getCountries());
+            if (countryCombo.getItems().isEmpty()) {
+                countryCombo.getSelectionModel().clearSelection();
+                return;
+            }
+            if (selectedCountry == null || !countryCombo.getItems().contains(selectedCountry)) {
+                countryCombo.getSelectionModel().selectFirst();
+            }
+        };
+        refreshCountries.run();
+        countryCombo.setConverter(createCountryConverter());
+        configureCountryComboForDelete(countryCombo, refreshCountries);
+        if (!countryCombo.getItems().isEmpty()) {
+            countryCombo.getSelectionModel().selectFirst();
+        }
+
+        Button newCountryButton = new Button("New...");
+        newCountryButton.setOnAction(e -> {
+            Country country = openAddCountryDialog(dialog.getDialogPane().getScene().getWindow());
+            if (country != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(country);
+            }
+        });
+
+        Button editCountryButton = new Button("Edit...");
+        editCountryButton.setOnAction(e -> {
+            Country edited = promptEditCountry(countryCombo.getValue());
+            if (edited != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(edited);
+            }
+        });
+
+        Button deleteCountryButton = new Button("Delete");
+        deleteCountryButton.setOnAction(e -> deleteCountryFromUi(countryCombo.getValue(), refreshCountries));
+
+        Button uploadButton = new Button("Upload Image...");
+        uploadButton.setOnAction(e -> chooseImagePath(dialog, imagePathField));
+
+        grid.add(new Label("Name*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Country"), 0, 1);
+        grid.add(new HBox(8, countryCombo, newCountryButton, editCountryButton, deleteCountryButton), 1, 1);
+        grid.add(new Label("City"), 0, 2);
+        grid.add(cityField, 1, 2);
+        grid.add(new Label("Address"), 0, 3);
+        grid.add(addressField, 1, 3);
+        grid.add(new Label("Latitude"), 0, 4);
+        grid.add(latitudeField, 1, 4);
+        grid.add(new Label("Longitude"), 0, 5);
+        grid.add(longitudeField, 1, 5);
+        grid.add(new Label("Image"), 0, 6);
+        grid.add(new HBox(8, imagePathField, uploadButton), 1, 6);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton != addButtonType) {
+                return null;
+            }
+            try {
+                Country country = countryCombo.getValue();
+                if (country == null) {
+                    throw new IllegalArgumentException("Country is required");
+                }
+                return locationRepository.addLocation(
+                        nameField.getText(),
+                        addressField.getText(),
+                        cityField.getText(),
+                        country.getId(),
+                        parseOptionalDouble(latitudeField.getText()),
+                        parseOptionalDouble(longitudeField.getText()),
+                        imagePathField.getText()
+                );
+            } catch (Exception ex) {
+                showError("Invalid location: " + ex.getMessage());
+                return null;
+            }
+        });
+
+        return dialog.showAndWait().orElse(null);
+    }
+
+    private Location openEditLocationDialog(Window owner, Location location) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Location");
+        dialog.setHeaderText("Update location details");
+        applyDialogTheme(dialog, "form-dialog");
+        if (owner != null) {
+            dialog.initOwner(owner);
+        }
+
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        TextField nameField = new TextField(location.getName());
+        TextField cityField = new TextField(location.getCity() == null ? "" : location.getCity());
+        TextField addressField = new TextField(location.getAddress() == null ? "" : location.getAddress());
+        TextField latitudeField = new TextField(location.getLatitude() == null ? "" : location.getLatitude().toString());
+        TextField longitudeField = new TextField(location.getLongitude() == null ? "" : location.getLongitude().toString());
+        TextField imagePathField = new TextField(location.getImagePath() == null ? "" : location.getImagePath());
+        imagePathField.setEditable(false);
+
+        ComboBox<Country> countryCombo = new ComboBox<>();
+        Runnable refreshCountries = () -> {
+            Country selectedCountry = countryCombo.getValue();
+            countryCombo.getItems().setAll(countryRepository.getCountries());
+            if (countryCombo.getItems().isEmpty()) {
+                countryCombo.getSelectionModel().clearSelection();
+                return;
+            }
+            if (selectedCountry == null || !countryCombo.getItems().contains(selectedCountry)) {
+                countryCombo.getSelectionModel().selectFirst();
+            }
+        };
+        refreshCountries.run();
+        countryCombo.setConverter(createCountryConverter());
+        configureCountryComboForDelete(countryCombo, refreshCountries);
+        if (location.getCountry() != null && countryCombo.getItems().contains(location.getCountry())) {
+            countryCombo.getSelectionModel().select(location.getCountry());
+        }
+
+        Button newCountryButton = new Button("New...");
+        newCountryButton.setOnAction(e -> {
+            Country created = promptAddCountry();
+            if (created != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(created);
+            }
+        });
+
+        Button editCountryButton = new Button("Edit...");
+        editCountryButton.setOnAction(e -> {
+            Country edited = promptEditCountry(countryCombo.getValue());
+            if (edited != null) {
+                refreshCountries.run();
+                countryCombo.getSelectionModel().select(edited);
+            }
+        });
+
+        Button deleteCountryButton = new Button("Delete");
+        deleteCountryButton.setOnAction(e -> deleteCountryFromUi(countryCombo.getValue(), refreshCountries));
+
+        Button uploadButton = new Button("Upload Image...");
+        uploadButton.setOnAction(e -> chooseImagePath(dialog, imagePathField));
+
+        grid.add(new Label("Name*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Country"), 0, 1);
+        grid.add(new HBox(8, countryCombo, newCountryButton, editCountryButton, deleteCountryButton), 1, 1);
+        grid.add(new Label("City"), 0, 2);
+        grid.add(cityField, 1, 2);
+        grid.add(new Label("Address"), 0, 3);
+        grid.add(addressField, 1, 3);
+        grid.add(new Label("Latitude"), 0, 4);
+        grid.add(latitudeField, 1, 4);
+        grid.add(new Label("Longitude"), 0, 5);
+        grid.add(longitudeField, 1, 5);
+        grid.add(new Label("Image"), 0, 6);
+        grid.add(new HBox(8, imagePathField, uploadButton), 1, 6);
+
+        dialog.getDialogPane().setContent(grid);
+        final boolean[] updated = new boolean[]{false};
+        dialog.showAndWait().ifPresent(result -> {
+            if (result != saveButtonType) {
+                return;
+            }
+            try {
+                Country selectedCountry = countryCombo.getValue();
+                if (selectedCountry == null) {
+                    throw new IllegalArgumentException("Country is required");
+                }
+                locationRepository.updateLocation(
+                        location.getId(),
+                        nameField.getText(),
+                        addressField.getText(),
+                        cityField.getText(),
+                        selectedCountry.getId(),
+                        parseOptionalDouble(latitudeField.getText()),
+                        parseOptionalDouble(longitudeField.getText()),
+                        imagePathField.getText());
+                updated[0] = true;
+            } catch (Exception e) {
+                showError("Invalid location: " + e.getMessage());
+            }
+        });
+
+        return updated[0] ? locationRepository.findById(location.getId()) : null;
+    }
+
+    private void chooseImagePath(Dialog<?> dialog, TextField targetField) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Choose Image");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.webp")
+        );
+        Window window = dialog.getDialogPane().getScene() != null ? dialog.getDialogPane().getScene().getWindow() : null;
+        File file = chooser.showOpenDialog(window);
+        if (file != null) {
+            targetField.setText(file.getAbsolutePath());
+        }
+    }
+
+    private void saveLookupStores() {
+        try {
+            countryRepository.save();
+            locationRepository.save();
+            expenseRepository.save();
+        } catch (IOException e) {
+            showError("Failed to save lookup data: " + e.getMessage());
+        }
+    }
+
+    public void configureLocationComboForDelete(ComboBox<Location> locationCombo, Runnable onDataChanged) {
+        Callback<ListView<Location>, ListCell<Location>> factory = ignored -> createLocationCellWithDelete(onDataChanged);
+        locationCombo.setCellFactory(factory);
+        locationCombo.setButtonCell(createLocationCellWithDelete(onDataChanged));
+    }
+
+    private void configureCountryComboForDelete(ComboBox<Country> countryCombo, Runnable onDataChanged) {
+        Callback<ListView<Country>, ListCell<Country>> factory = ignored -> createCountryCellWithDelete(onDataChanged);
+        countryCombo.setCellFactory(factory);
+        countryCombo.setButtonCell(createCountryCellWithDelete(onDataChanged));
+    }
+
+    private ListCell<Country> createCountryCellWithDelete(Runnable onDataChanged) {
+        ListCell<Country> cell = new ListCell<>() {
+            @Override
+            protected void updateItem(Country item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.toString());
+            }
+        };
+        MenuItem deleteItem = new MenuItem("Delete Country");
+        deleteItem.setOnAction(event -> {
+            Country country = cell.getItem();
+            if (country != null) {
+                attemptDeleteCountry(country, onDataChanged);
+            }
+        });
+        ContextMenu contextMenu = new ContextMenu(deleteItem);
+        cell.emptyProperty().addListener((obs, wasEmpty, isEmpty) -> cell.setContextMenu(isEmpty ? null : contextMenu));
+        return cell;
+    }
+
+    private ListCell<Location> createLocationCellWithDelete(Runnable onDataChanged) {
+        ListCell<Location> cell = new ListCell<>() {
+            @Override
+            protected void updateItem(Location item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.toString());
+            }
+        };
+        MenuItem deleteItem = new MenuItem("Delete Location");
+        deleteItem.setOnAction(event -> {
+            Location location = cell.getItem();
+            if (location != null) {
+                attemptDeleteLocation(location, onDataChanged);
+            }
+        });
+        ContextMenu contextMenu = new ContextMenu(deleteItem);
+        cell.emptyProperty().addListener((obs, wasEmpty, isEmpty) -> cell.setContextMenu(isEmpty ? null : contextMenu));
+        return cell;
+    }
+
+    private boolean attemptDeleteCountry(Country country, Runnable onDataChanged) {
+        int countryId = country.getId();
+        List<String> tripReferences = findCountryReferences(countryId);
+        if (!tripReferences.isEmpty()) {
+            showError("Cannot delete country '" + country.getName() + "'.\nReferenced by trips:\n- "
+                    + String.join("\n- ", tripReferences));
+            return false;
+        }
+
+        List<Location> locationsInCountry = new ArrayList<>();
+        for (Location location : locationRepository.getLocations()) {
+            if (location.getCountry() != null && location.getCountry().getId() == countryId) {
+                locationsInCountry.add(location);
+            }
+        }
+
+        List<String> blockingActivityReferences = new ArrayList<>();
+        for (Location location : locationsInCountry) {
+            List<String> locationReferences = findLocationReferences(location.getId());
+            if (!locationReferences.isEmpty()) {
+                blockingActivityReferences.add("Location: " + location.getName());
+                for (String reference : locationReferences) {
+                    blockingActivityReferences.add("  " + reference);
+                }
+            }
+        }
+
+        if (!blockingActivityReferences.isEmpty()) {
+            showError("Cannot delete country '" + country.getName()
+                    + "'.\nSome linked locations are still referenced by activities:\n- "
+                    + String.join("\n- ", blockingActivityReferences));
+            return false;
+        }
+
+        try {
+            int deletedLocationCount = 0;
+            for (Location location : locationsInCountry) {
+                locationRepository.deleteLocationById(location.getId());
+                deletedLocationCount++;
+            }
+            countryRepository.deleteCountryById(country.getId());
+            saveLookupStores();
+            if (onDataChanged != null) {
+                onDataChanged.run();
+            }
+            String deleteMessage = "Deleted " + country.getName();
+            if (deletedLocationCount > 0) {
+                deleteMessage += " and " + deletedLocationCount + " linked location(s).";
+            }
+            showInfo("Country Deleted", deleteMessage);
+            refreshHeaderActivitySummary();
+            return true;
+        } catch (Exception e) {
+            showError("Failed to delete country: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean attemptDeleteLocation(Location location, Runnable onDataChanged) {
+        List<String> references = findLocationReferences(location.getId());
+        if (!references.isEmpty()) {
+            showError("Cannot delete location '" + location.getName() + "'.\nReferenced by:\n- "
+                    + String.join("\n- ", references));
+            return false;
+        }
+
+        try {
+            locationRepository.deleteLocationById(location.getId());
+            saveLookupStores();
+            if (onDataChanged != null) {
+                onDataChanged.run();
+            }
+            showInfo("Location Deleted", "Deleted " + location.getName());
+            refreshHeaderActivitySummary();
+            return true;
+        } catch (Exception e) {
+            showError("Failed to delete location: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public List<String> findCountryReferences(int countryId) {
+        List<String> references = new ArrayList<>();
+        for (Trip trip : tripManager.getTrips()) {
+            if (trip.getCountry() != null && trip.getCountry().getId() == countryId) {
+                references.add("Trip: " + trip.getName());
+            }
+        }
+        return references;
+    }
+
+    public List<String> findLocationReferences(int locationId) {
+        List<String> references = new ArrayList<>();
+        for (Trip trip : tripManager.getTrips()) {
+            for (Activity activity : trip.getActivities()) {
+                if (activity.getLocation() != null && activity.getLocation().getId() == locationId) {
+                    references.add("Activity: " + activity.getName() + " (Trip: " + trip.getName() + ")");
+                }
+            }
+        }
+        return references;
+    }
+
+    public void refreshHeaderActivitySummary() {
+        if (ongoingActivityLabel == null || upcomingActivityLabel == null) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Activity> activities = new ArrayList<>();
+        for (Trip trip : tripManager.getTrips()) {
+            activities.addAll(trip.getActivities());
+        }
+
+        List<Activity> ongoing = activities.stream()
+                .filter(activity -> !activity.getStartDateTime().isAfter(now)
+                        && activity.getEndDateTime().isAfter(now))
+                .sorted(Comparator.comparing(Activity::getEndDateTime))
+                .toList();
+
+        Activity nextUpcoming = activities.stream()
+                .filter(activity -> activity.getStartDateTime().isAfter(now))
+                .min(Comparator.comparing(Activity::getStartDateTime))
+                .orElse(null);
+
+        if (ongoing.isEmpty()) {
+            ongoingActivityLabel.setText("Ongoing: none");
+        } else {
+            Activity first = ongoing.get(0);
+            ongoingActivityLabel.setText("Ongoing: " + first.getName() + " (until "
+                    + first.getEndDateTime().format(DATE_TIME_FORMAT) + ")");
+        }
+
+        if (nextUpcoming == null) {
+            upcomingActivityLabel.setText("Upcoming: none");
+        } else {
+            upcomingActivityLabel.setText("Upcoming: " + nextUpcoming.getName() + " ("
+                    + nextUpcoming.getStartDateTime().format(DATE_TIME_FORMAT) + ")");
+        }
+    }
+
+    private void showHomeGuide() {
+        showGuideDialog("Home Page Guide", "Top-level controls",
+                "Use this page to manage your trips.\n"
+                + "- Top ? button: show this page-specific guide.\n"
+            + "- Use Delete buttons near country/location selectors (or right-click dropdown entries).\n"
+                        + "- Add Trip: create a trip linked to a country.\n"
+                        + "- Double-click a trip to open itinerary details.");
+    }
+
+    private void showGuideDialog(String title, String header, String body) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle(title);
+        dialog.setHeaderText(header);
+        applyDialogTheme(dialog, "guide-dialog");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox content = new VBox(8);
+        content.getStyleClass().add("guide-content");
+
+        Label bodyLabel = new Label(body);
+        bodyLabel.setWrapText(true);
+        bodyLabel.getStyleClass().add("guide-text");
+
+        content.getChildren().add(bodyLabel);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    private void applyDialogTheme(Dialog<?> dialog, String styleClass) {
+        String stylesheet = getClass().getResource("/view/theme.css").toExternalForm();
+        if (!dialog.getDialogPane().getStylesheets().contains(stylesheet)) {
+            dialog.getDialogPane().getStylesheets().add(stylesheet);
+        }
+        if (styleClass != null && !styleClass.isBlank() && !dialog.getDialogPane().getStyleClass().contains(styleClass)) {
+            dialog.getDialogPane().getStyleClass().add(styleClass);
+        }
+    }
+
+    private Image resolveImage(String imagePath) {
+        if (imagePath == null || imagePath.isBlank()) {
+            return null;
+        }
+
+        try {
+            String normalizedPath = imageAssetStore.normalizeImagePath(imagePath);
+            if (normalizedPath == null || normalizedPath.isBlank()) {
+                return null;
+            }
+
+            if (normalizedPath.startsWith("/images/")) {
+                InputStream stream = getClass().getResourceAsStream(normalizedPath);
+                if (stream != null) {
+                    return new Image(stream);
+                }
+                return null;
+            }
+
+            File imageFile = new File(normalizedPath);
+            if (!imageFile.exists()) {
+                return null;
+            }
+            return new Image(new FileInputStream(imageFile));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private StringConverter<Country> createCountryConverter() {
+        return new StringConverter<>() {
+            @Override
+            public String toString(Country country) {
+                return country == null ? "" : country.toString();
+            }
+
+            @Override
+            public Country fromString(String string) {
+                return null;
+            }
+        };
+    }
+
+    private Double parseOptionalDouble(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return null;
+        }
+        return Double.parseDouble(text.trim());
+    }
+
+    private LocalTime parseTimeOrDefault(String text, LocalTime fallback) {
+        try {
+            return LocalTime.parse(text);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private String formatDateTimeRange(LocalDateTime start, LocalDateTime end) {
+        return formatDateTime(start) + " to " + formatDateTime(end);
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        return dateTime != null ? dateTime.format(DATE_TIME_FORMAT) : "?";
+    }
+
+    private void showError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void showInfo(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
 }

@@ -13,10 +13,11 @@ public abstract class BaseEntity {
 
     private String description;
 
-    private BufferedImage image;
+    // BufferedImage should remain runtime-only and never be serialized to JSON.
+    private transient BufferedImage image;
 
     protected BaseEntity() {
-        this(0, "");
+        this(0, "Unnamed");
     }
 
     protected BaseEntity(int id, String name) {
@@ -40,7 +41,11 @@ public abstract class BaseEntity {
     }
 
     public void setName(String name) {
-        this.name = Objects.requireNonNull(name, "name");
+        String trimmed = Objects.requireNonNull(name, "name").trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("name must not be blank");
+        }
+        this.name = trimmed;
     }
 
     public String getDescription() {

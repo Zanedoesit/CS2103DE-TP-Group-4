@@ -11,7 +11,10 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
+import country.Country;
 import expense.Expense;
 import location.Location;
 import trip.Trip;
@@ -63,6 +66,8 @@ public class JsonStorage {
     /** The full path to the data file (e.g., "data/trips.json") */
     private final Path dataFilePath;
 
+    private static final ImageAssetStore IMAGE_ASSET_STORE = new ImageAssetStore();
+
     /**
      * Creates a new JsonStorage with default settings.
      * The data file will be at "data/trips.json" relative to where the app runs.
@@ -105,9 +110,12 @@ public class JsonStorage {
                 // validate their inputs (e.g., start must be before end).
                 // Gson's default approach of setting fields directly would
                 // bypass these checks, so we manually call the constructors.
+                .registerTypeAdapter(Trip.class, new TripSerializer())
                 .registerTypeAdapter(Trip.class, new TripDeserializer())
+                .registerTypeAdapter(Activity.class, new ActivitySerializer())
                 .registerTypeAdapter(Activity.class, new ActivityDeserializer())
                 .registerTypeAdapter(Location.class, new LocationDeserializer())
+                .registerTypeAdapter(Country.class, new CountryDeserializer())
 
                 // Tell Gson to skip any BufferedImage fields.
                 // Images are binary data and don't belong in a text-based JSON file.
@@ -204,6 +212,31 @@ public class JsonStorage {
     // approach would bypass that validation.
 
     /**
+     * Serializer for Trip that stores references instead of nested country payload.
+     */
+    private static class TripSerializer implements JsonSerializer<Trip> {
+        @Override
+        public JsonElement serialize(Trip src, Type typeOfSrc, JsonSerializationContext context) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("id", src.getId());
+            obj.addProperty("name", src.getName());
+            obj.add("startDateTime", context.serialize(src.getStartDateTime(), LocalDateTime.class));
+            obj.add("endDateTime", context.serialize(src.getEndDateTime(), LocalDateTime.class));
+            obj.addProperty("countryId", src.getCountry() != null ? src.getCountry().getId() : 0);
+            if (src.getDescription() != null) {
+                obj.addProperty("description", src.getDescription());
+            }
+            obj.add("activities", context.serialize(src.getActivities()));
+            JsonArray expenseIds = new JsonArray();
+            for (Expense expense : src.getExpenses()) {
+                expenseIds.add(expense.getId());
+            }
+            obj.add("expenseIds", expenseIds);
+            return obj;
+        }
+    }
+
+    /**
      * Custom deserializer for Trip objects.
      *
      * When Gson reads a Trip from JSON, instead of trying to magically
@@ -217,20 +250,32 @@ public class JsonStorage {
 
             // Extract the basic fields from the JSON object
             int id = obj.get("id").getAsInt();
-            String name = obj.get("name").getAsString();
+            String name = getString(obj, "name", "Untitled Trip");
 
             // Parse dates using our LocalDateTime adapter
             LocalDateTime start = context.deserialize(obj.get("startDateTime"), LocalDateTime.class);
             LocalDateTime end = context.deserialize(obj.get("endDateTime"), LocalDateTime.class);
 
-            // Parse location (may be null if none was set)
-            Location location = null;
-            if (obj.has("location") && !obj.get("location").isJsonNull()) {
-                location = context.deserialize(obj.get("location"), Location.class);
+            Country country = null;
+            if (obj.has("countryId") && !obj.get("countryId").isJsonNull()) {
+                country = new Country(obj.get("countryId").getAsInt(), "Unspecified");
+            }
+            if (obj.has("country") && !obj.get("country").isJsonNull()) {
+                country = context.deserialize(obj.get("country"), Country.class);
+            }
+            // Backward compatibility with older trip JSON using location.
+            if (country == null && obj.has("location") && !obj.get("location").isJsonNull()) {
+                Location oldLocation = context.deserialize(obj.get("location"), Location.class);
+                if (oldLocation != null) {
+                    country = oldLocation.getCountry();
+                }
+            }
+            if (country == null) {
+                country = new Country(0, "Unspecified");
             }
 
             // Create the Trip using its proper constructor (with validation)
-            Trip trip = new Trip(id, name, start, end, location);
+            Trip trip = new Trip(id, name, start, end, country);
 
             // Set optional description
             if (obj.has("description") && !obj.get("description").isJsonNull()) {
@@ -250,8 +295,14 @@ public class JsonStorage {
                 }
             }
 
-            // Restore trip-level expenses
-            if (obj.has("expenses")) {
+            if (obj.has("expenseIds")) {
+                JsonArray expenseIds = obj.getAsJsonArray("expenseIds");
+                for (JsonElement expenseIdElement : expenseIds) {
+                    int expenseId = expenseIdElement.getAsInt();
+                    trip.addExpense(createExpensePlaceholder(expenseId));
+                }
+            } else if (obj.has("expenses")) {
+                // Backward compatibility with embedded expense payloads.
                 JsonArray expensesArray = obj.getAsJsonArray("expenses");
                 for (JsonElement expElement : expensesArray) {
                     Expense expense = context.deserialize(expElement, Expense.class);
@@ -260,6 +311,39 @@ public class JsonStorage {
             }
 
             return trip;
+        }
+
+        private String getString(JsonObject obj, String key, String defaultValue) {
+            if (!obj.has(key) || obj.get(key).isJsonNull()) {
+                return defaultValue;
+            }
+            String value = obj.get(key).getAsString();
+            return value == null || value.trim().isEmpty() ? defaultValue : value;
+        }
+    }
+
+    /**
+     * Serializer for Activity that stores location references by id.
+     */
+    private static class ActivitySerializer implements JsonSerializer<Activity> {
+        @Override
+        public JsonElement serialize(Activity src, Type typeOfSrc, JsonSerializationContext context) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("id", src.getId());
+            obj.addProperty("name", src.getName());
+            obj.add("startDateTime", context.serialize(src.getStartDateTime(), LocalDateTime.class));
+            obj.add("endDateTime", context.serialize(src.getEndDateTime(), LocalDateTime.class));
+            if (src.getDescription() != null) {
+                obj.addProperty("description", src.getDescription());
+            }
+            obj.add("types", context.serialize(src.getTypes()));
+            JsonArray expenseIds = new JsonArray();
+            for (Expense expense : src.getExpenses()) {
+                expenseIds.add(expense.getId());
+            }
+            obj.add("expenseIds", expenseIds);
+            obj.addProperty("locationId", src.getLocation() != null ? src.getLocation().getId() : 0);
+            return obj;
         }
     }
 
@@ -279,6 +363,11 @@ public class JsonStorage {
             LocalDateTime end = context.deserialize(obj.get("endDateTime"), LocalDateTime.class);
 
             Location location = null;
+            if (obj.has("locationId") && !obj.get("locationId").isJsonNull()) {
+                int locationId = obj.get("locationId").getAsInt();
+                location = new Location(locationId, "Unspecified", null, null,
+                        new Country(0, "Unspecified"), null, null, null);
+            }
             if (obj.has("location") && !obj.get("location").isJsonNull()) {
                 location = context.deserialize(obj.get("location"), Location.class);
             }
@@ -297,8 +386,14 @@ public class JsonStorage {
                 }
             }
 
-            // Restore activity-level expenses
-            if (obj.has("expenses")) {
+            if (obj.has("expenseIds")) {
+                JsonArray expenseIds = obj.getAsJsonArray("expenseIds");
+                for (JsonElement expenseIdElement : expenseIds) {
+                    int expenseId = expenseIdElement.getAsInt();
+                    activity.addExpense(createExpensePlaceholder(expenseId));
+                }
+            } else if (obj.has("expenses")) {
+                // Backward compatibility with embedded expense payloads.
                 JsonArray expensesArray = obj.getAsJsonArray("expenses");
                 for (JsonElement expElement : expensesArray) {
                     Expense expense = context.deserialize(expElement, Expense.class);
@@ -323,10 +418,25 @@ public class JsonStorage {
             String name = getString(obj, "name", "Unnamed Location");
             String address = getStringOrNull(obj, "address");
             String city = getStringOrNull(obj, "city");
-            String country = getStringOrNull(obj, "country");
+            Country country = null;
+            if (obj.has("countryId") && !obj.get("countryId").isJsonNull()) {
+                country = new Country(obj.get("countryId").getAsInt(), "Unspecified");
+            }
+            if (obj.has("country") && !obj.get("country").isJsonNull()) {
+                JsonElement countryElement = obj.get("country");
+                if (countryElement.isJsonObject()) {
+                    country = context.deserialize(countryElement, Country.class);
+                } else {
+                    String countryName = countryElement.getAsString();
+                    country = new Country(0, countryName == null || countryName.isBlank() ? "Unspecified" : countryName);
+                }
+            }
+            if (country == null) {
+                country = new Country(0, "Unspecified");
+            }
             Double latitude = getDoubleOrNull(obj, "latitude");
             Double longitude = getDoubleOrNull(obj, "longitude");
-            String imagePath = getStringOrNull(obj, "imagePath");
+            String imagePath = IMAGE_ASSET_STORE.normalizeImagePath(getStringOrNull(obj, "imagePath"));
 
             return new Location(id, name, address, city, country, latitude, longitude, imagePath);
         }
@@ -356,5 +466,34 @@ public class JsonStorage {
                 return null;
             }
         }
+    }
+
+    /**
+     * Deserializer for country with safe fallbacks.
+     */
+    private static class CountryDeserializer implements JsonDeserializer<Country> {
+        @Override
+        public Country deserialize(JsonElement json, Type typeOfT,
+                                   JsonDeserializationContext context) throws JsonParseException {
+            if (json.isJsonPrimitive()) {
+                String name = json.getAsString();
+                return new Country(0, (name == null || name.isBlank()) ? "Unspecified" : name);
+            }
+
+            JsonObject obj = json.getAsJsonObject();
+            int id = obj.has("id") && !obj.get("id").isJsonNull() ? obj.get("id").getAsInt() : 0;
+            String name = obj.has("name") && !obj.get("name").isJsonNull() ? obj.get("name").getAsString() : "Unspecified";
+            if (name.isBlank()) {
+                name = "Unspecified";
+            }
+            String continent = obj.has("continent") && !obj.get("continent").isJsonNull() ? obj.get("continent").getAsString() : null;
+            String imagePath = obj.has("imagePath") && !obj.get("imagePath").isJsonNull()
+                    ? IMAGE_ASSET_STORE.normalizeImagePath(obj.get("imagePath").getAsString()) : null;
+            return new Country(id, name, continent, imagePath);
+        }
+    }
+
+    private static Expense createExpensePlaceholder(int expenseId) {
+        return new Expense(expenseId, "Unspecified", 0f, Expense.Currency.USD, Expense.Type.OTHER);
     }
 }

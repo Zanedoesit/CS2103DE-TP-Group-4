@@ -1,4 +1,5 @@
 package location;
+import country.Country;
 import java.util.Objects;
 import java.util.StringJoiner;
 
@@ -13,7 +14,7 @@ public class Location extends BaseEntity {
 
     private String city;
 
-    private String country;
+    private Country country;
 
     private Double latitude;
 
@@ -25,16 +26,16 @@ public class Location extends BaseEntity {
         super(id, name);
     }
 
-    public Location(int id, String name, String address, String city, String country, Double latitude, Double longitude) {
+    public Location(int id, String name, String address, String city, Country country, Double latitude, Double longitude) {
         this(id, name, address, city, country, latitude, longitude, null);
     }
 
-    public Location(int id, String name, String address, String city, String country,
+    public Location(int id, String name, String address, String city, Country country,
                     Double latitude, Double longitude, String imagePath) {
         super(id, name);
         this.address = address;
         this.city = city;
-        this.country = country;
+        setCountry(country);
         this.latitude = latitude;
         this.longitude = longitude;
         this.imagePath = imagePath;
@@ -56,12 +57,12 @@ public class Location extends BaseEntity {
         this.city = city;
     }
 
-    public String getCountry() {
+    public Country getCountry() {
         return country;
     }
 
-    public void setCountry(String country) {
-        this.country = country;
+    public void setCountry(Country country) {
+        this.country = Objects.requireNonNull(country, "country");
     }
 
     public Double getLatitude() {
@@ -113,8 +114,8 @@ public class Location extends BaseEntity {
         if (city != null && !city.isBlank()) {
             locationBits.add(city);
         }
-        if (country != null && !country.isBlank()) {
-            locationBits.add(country);
+        if (country != null && country.getName() != null && !country.getName().isBlank()) {
+            locationBits.add(country.getName());
         }
 
         String primary = (getName() != null && !getName().isBlank()) ? getName() : "Location";

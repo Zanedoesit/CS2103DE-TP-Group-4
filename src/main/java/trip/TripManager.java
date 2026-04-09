@@ -1,12 +1,24 @@
 package trip;
+import activity.Activity;
+import country.Country;
+import country.CountryRepository;
+import expense.Expense;
+import expense.ExpenseRepository;
 import exceptions.TimeIntervalConflictException;
 import exceptions.TripNotFoundException;
+import location.Location;
+import location.LocationRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import storage.JsonStorage;
 import java.io.IOException;
 
@@ -15,9 +27,14 @@ import java.io.IOException;
  */
 public class TripManager {
 
+    private static final Set<Integer> USED_TRIP_IDS = new HashSet<>();
+    private static final Set<String> USED_TRIP_NAMES = new HashSet<>();
+
     private final List<Trip> trips = new ArrayList<>();
+    private final Map<Integer, Trip> tripsById = new HashMap<>();
     // Added JsonStorage attribute
     private final JsonStorage storage;
+    private int nextId = 1;
 
     /**
      * Create TripManager with default Json storage --> save to data/trips.json
@@ -48,7 +65,12 @@ public class TripManager {
     public TripManager(List<Trip> trips) {
         this.storage = new JsonStorage();
         if (trips != null) {
-            this.trips.addAll(trips);
+            for (Trip trip : trips) {
+                registerTripIdentity(trip);
+                this.trips.add(trip);
+                this.tripsById.put(trip.getId(), trip);
+                this.nextId = Math.max(this.nextId, trip.getId() + 1);
+            }
         }
     }
     /**
@@ -58,9 +80,32 @@ public class TripManager {
      * @throws IOException if reading the file fails
      */
     public void loadFromFile() throws IOException {
+        loadFromFile(null, null, null);
+    }
+
+    public void loadFromFile(CountryRepository countryRepository, LocationRepository locationRepository) throws IOException {
+        loadFromFile(countryRepository, locationRepository, null);
+    }
+
+    public void loadFromFile(CountryRepository countryRepository, LocationRepository locationRepository,
+                             ExpenseRepository expenseRepository) throws IOException {
         List<Trip> loaded = storage.load();
         trips.clear();
-        trips.addAll(loaded);
+        tripsById.clear();
+        USED_TRIP_IDS.clear();
+        USED_TRIP_NAMES.clear();
+        nextId = 1;
+
+        for (Trip trip : loaded) {
+            registerTripIdentity(trip);
+            trips.add(trip);
+            tripsById.put(trip.getId(), trip);
+            nextId = Math.max(nextId, trip.getId() + 1);
+        }
+
+        if (countryRepository != null || locationRepository != null || expenseRepository != null) {
+            resolveReferences(countryRepository, locationRepository, expenseRepository);
+        }
     }
 
     /**
@@ -81,23 +126,84 @@ public class TripManager {
 
     public void addTrip(Trip trip) throws TimeIntervalConflictException {
         Objects.requireNonNull(trip, "trip");
+        ensureUniqueTripName(trip.getName());
+        ensureUniqueTripId(trip.getId());
         for (Trip existing : trips) {
             if (trip.overlapsWith(existing)) {
                 throw new TimeIntervalConflictException(
                         "Trip time conflict with existing trip: " + existing.getName());
             }
         }
+        registerTripIdentity(trip);
         trips.add(trip);
+        tripsById.put(trip.getId(), trip);
+        nextId = Math.max(nextId, trip.getId() + 1);
+    }
+
+    public void updateTrip(int tripId, String name, LocalDateTime startDateTime,
+                           LocalDateTime endDateTime, Country country) throws TimeIntervalConflictException {
+        Trip trip = tripsById.get(tripId);
+        if (trip == null) {
+            throw new IllegalArgumentException("Trip not found: id=" + tripId);
+        }
+        Objects.requireNonNull(country, "country");
+
+        String normalizedName = normalizeRequiredName(name, "trip name");
+        String oldNameKey = normalizeNameKey(trip.getName());
+        String newNameKey = normalizeNameKey(normalizedName);
+
+        for (Trip other : trips) {
+            if (other.getId() != tripId && normalizeNameKey(other.getName()).equals(newNameKey)) {
+                throw new IllegalArgumentException("Trip already exists: " + normalizedName);
+            }
+        }
+
+        if (startDateTime == null || endDateTime == null) {
+            throw new IllegalArgumentException("Trip start and end are required");
+        }
+        if (startDateTime.isAfter(endDateTime)) {
+            throw new IllegalArgumentException("Trip start must not be after end");
+        }
+
+        for (Trip other : trips) {
+            if (other.getId() == tripId) {
+                continue;
+            }
+            if (startDateTime.isBefore(other.getEndDateTime()) && endDateTime.isAfter(other.getStartDateTime())) {
+                throw new TimeIntervalConflictException("Trip time conflict with existing trip: " + other.getName());
+            }
+        }
+
+        if (!oldNameKey.equals(newNameKey)) {
+            USED_TRIP_NAMES.remove(oldNameKey);
+            USED_TRIP_NAMES.add(newNameKey);
+        }
+
+        trip.setName(normalizedName);
+        trip.setStartDateTime(startDateTime);
+        trip.setEndDateTime(endDateTime);
+        trip.setCountry(country);
     }
 
     public void deleteTripById(int id) throws TripNotFoundException {
         Trip trip = findTripById(id);
         trips.remove(trip);
+        unregisterTripIdentity(trip);
+        tripsById.remove(id);
     }
 
     public void deleteTripByName(String name) throws TripNotFoundException {
         Trip trip = findTripByName(name);
         trips.remove(trip);
+        unregisterTripIdentity(trip);
+        tripsById.remove(trip.getId());
+    }
+
+    public int nextAvailableId() {
+        while (USED_TRIP_IDS.contains(nextId)) {
+            nextId++;
+        }
+        return nextId;
     }
 
     public Trip getTripById(int id) throws TripNotFoundException {
@@ -143,10 +249,9 @@ public class TripManager {
     }
 
     private Trip findTripById(int id) throws TripNotFoundException {
-        for (Trip trip : trips) {
-            if (trip.getId() == id) {
-                return trip;
-            }
+        Trip trip = tripsById.get(id);
+        if (trip != null) {
+            return trip;
         }
         throw new TripNotFoundException("Trip not found: id=" + id);
     }
@@ -158,6 +263,103 @@ public class TripManager {
             }
         }
         throw new TripNotFoundException("Trip not found: name=" + name);
+    }
+
+    private void ensureUniqueTripName(String name) {
+        String normalizedName = normalizeNameKey(name);
+        if (USED_TRIP_NAMES.contains(normalizedName)) {
+            throw new IllegalArgumentException("Trip already exists: " + name);
+        }
+    }
+
+    private void ensureUniqueTripId(int id) {
+        if (USED_TRIP_IDS.contains(id)) {
+            throw new IllegalArgumentException("Duplicate trip id detected: " + id);
+        }
+    }
+
+    private void registerTripIdentity(Trip trip) {
+        String nameKey = normalizeNameKey(trip.getName());
+        if (!USED_TRIP_IDS.add(trip.getId())) {
+            throw new IllegalStateException("Duplicate trip id detected: " + trip.getId());
+        }
+        if (!USED_TRIP_NAMES.add(nameKey)) {
+            throw new IllegalStateException("Duplicate trip name detected: " + trip.getName());
+        }
+    }
+
+    private void unregisterTripIdentity(Trip trip) {
+        USED_TRIP_IDS.remove(trip.getId());
+        USED_TRIP_NAMES.remove(normalizeNameKey(trip.getName()));
+    }
+
+    private String normalizeNameKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeRequiredName(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return value.trim();
+    }
+
+    private void resolveReferences(CountryRepository countryRepository, LocationRepository locationRepository,
+                                   ExpenseRepository expenseRepository) {
+        for (Trip trip : trips) {
+            if (countryRepository != null && trip.getCountry() != null) {
+                Country resolvedCountry = countryRepository.findById(trip.getCountry().getId());
+                if (resolvedCountry == null) {
+                    resolvedCountry = countryRepository.findByName(trip.getCountry().getName());
+                }
+                if (resolvedCountry != null) {
+                    trip.setCountry(resolvedCountry);
+                }
+            }
+
+            if (expenseRepository != null) {
+                trip.setExpenses(resolveExpenseReferences(trip.getExpenses(), expenseRepository));
+            }
+
+            if (locationRepository == null) {
+                if (expenseRepository != null) {
+                    for (Activity activity : trip.getActivities()) {
+                        activity.setExpenses(resolveExpenseReferences(activity.getExpenses(), expenseRepository));
+                    }
+                }
+                continue;
+            }
+            for (Activity activity : trip.getActivities()) {
+                Location location = activity.getLocation();
+                if (location == null) {
+                    continue;
+                }
+                Location resolvedLocation = locationRepository.findById(location.getId());
+                if (resolvedLocation == null) {
+                    resolvedLocation = locationRepository.findByName(location.getName());
+                }
+                if (resolvedLocation != null) {
+                    activity.setLocation(resolvedLocation);
+                }
+                if (expenseRepository != null) {
+                    activity.setExpenses(resolveExpenseReferences(activity.getExpenses(), expenseRepository));
+                }
+            }
+        }
+    }
+
+    private List<Expense> resolveExpenseReferences(List<Expense> source, ExpenseRepository expenseRepository) {
+        List<Expense> resolved = new ArrayList<>();
+        for (Expense expense : source) {
+            Expense canonical = expenseRepository.findById(expense.getId());
+            if (canonical != null) {
+                resolved.add(canonical);
+                continue;
+            }
+            expenseRepository.registerExpense(expense);
+            resolved.add(expense);
+        }
+        return resolved;
     }
 
 }

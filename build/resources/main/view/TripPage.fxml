@@ -1,17 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 <BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="ui.TripPage" styleClass="app-root">
     <center>
         <VBox spacing="14" alignment="TOP_LEFT">
             <HBox spacing="16" alignment="CENTER_LEFT" styleClass="card">
-                <StackPane styleClass="image-tile tile-city small-tile">
-                    <Label text="City" styleClass="tile-label" />
-                </StackPane>
-                <StackPane styleClass="image-tile tile-market small-tile">
-                    <Label text="Market" styleClass="tile-label" />
-                </StackPane>
+                <ImageView fx:id="tripImageView" fitWidth="72" fitHeight="72" preserveRatio="true" styleClass="thumb" />
                 <VBox spacing="4">
                     <Label fx:id="tripNameLabel" styleClass="page-title" />
                     <Label fx:id="tripDateLabel" styleClass="muted" />
@@ -34,16 +30,22 @@
                 <Label text="Activities" styleClass="section-title" />
                 <HBox spacing="10" alignment="CENTER_LEFT">
                         <Label text="Filter by type:" styleClass="muted" />
-                        <ComboBox fx:id="activityTypeFilter" />
+                    <ComboBox fx:id="activityTypeFilter" prefWidth="190" styleClass="trip-filter-combo" />
                 </HBox>
                 <ListView fx:id="activityListView" prefHeight="200" />
-                <Button text="Add Activity" fx:id="addActivityButton" />
+                <HBox spacing="10">
+                    <Button text="Add Activity" fx:id="addActivityButton" />
+                    <Button text="Edit Activity" fx:id="editActivityButton" styleClass="ghost-button" />
+                </HBox>
             </VBox>
             <Separator styleClass="section-separator" />
             <VBox spacing="10" styleClass="card section-card">
                 <Label text="Expenses" styleClass="section-title" />
                 <ListView fx:id="expenseListView" prefHeight="200" />
-                <Button text="Add Expense" fx:id="addExpenseButton" />
+                <HBox spacing="10">
+                    <Button text="Add Expense" fx:id="addExpenseButton" />
+                    <Button text="Edit Expense" fx:id="editExpenseButton" styleClass="ghost-button" />
+                </HBox>
                 <Label fx:id="totalCostLabel" styleClass="section-title" />
             </VBox>
         </VBox>
