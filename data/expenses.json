@@ -1,0 +1,38 @@
+[
+  {
+    "cost": 100.0,
+    "currency": "SGD",
+    "type": "OTHER",
+    "imagePath": "data/images/expense-mental-health-funds.jpg",
+    "id": 1,
+    "name": "Mental Health Funds",
+    "priority": 0
+  },
+  {
+    "cost": 20.0,
+    "currency": "SGD",
+    "type": "TRANSPORTATION",
+    "imagePath": "data/images/expense-grab-car.jpg",
+    "id": 2,
+    "name": "Grab Car",
+    "priority": 0
+  },
+  {
+    "cost": 20.0,
+    "currency": "SGD",
+    "type": "OTHER",
+    "imagePath": "data/images/expense-antidepressants.jpg",
+    "id": 3,
+    "name": "Antidepressants",
+    "priority": 0
+  },
+  {
+    "cost": 100000.0,
+    "currency": "EUR",
+    "type": "ENTERTAINMENT",
+    "imagePath": "data/images/expense-kanye-meetup-fee.jpg",
+    "id": 4,
+    "name": "Kanye Meetup Fee",
+    "priority": 0
+  }
+]

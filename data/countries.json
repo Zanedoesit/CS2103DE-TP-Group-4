@@ -1,0 +1,37 @@
+[
+  {
+    "continent": "South East Asia",
+    "imagePath": "data/images/country-singapore.jpg",
+    "id": 1,
+    "name": "Singapore",
+    "priority": 0
+  },
+  {
+    "continent": "Asia",
+    "imagePath": "data/images/country-japan.jpg",
+    "id": 2,
+    "name": "Japan",
+    "priority": 0
+  },
+  {
+    "continent": "South East Asia",
+    "imagePath": "data/images/country-thailand.jpg",
+    "id": 3,
+    "name": "Thailand",
+    "priority": 0
+  },
+  {
+    "continent": "South East Asia",
+    "imagePath": "data/images/country-malaysia.jpg",
+    "id": 4,
+    "name": "Malaysia",
+    "priority": 0
+  },
+  {
+    "continent": "Europe",
+    "imagePath": "data/images/country-france.jpg",
+    "id": 5,
+    "name": "France",
+    "priority": 0
+  }
+]

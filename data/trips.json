@@ -1,0 +1,91 @@
+[
+  {
+    "id": 1,
+    "name": "NUS Final 2 Weeks!",
+    "priority": 0,
+    "startDateTime": "2026-04-05T00:00:00",
+    "endDateTime": "2026-04-17T23:59:00",
+    "countryId": 1,
+    "activities": [
+      {
+        "id": 1,
+        "name": "FYP Demo",
+        "priority": 0,
+        "startDateTime": "2026-04-16T16:00:00",
+        "endDateTime": "2026-04-16T17:00:00",
+        "types": [
+          "OTHER"
+        ],
+        "expenseIds": [
+          1,
+          2
+        ],
+        "locationId": 1
+      },
+      {
+        "id": 2,
+        "name": "CS2103DE Checkup",
+        "priority": 0,
+        "startDateTime": "2026-04-09T16:00:00",
+        "endDateTime": "2026-04-09T17:00:00",
+        "types": [
+          "OTHER"
+        ],
+        "expenseIds": [],
+        "locationId": 2
+      },
+      {
+        "id": 3,
+        "name": "Lock In",
+        "priority": 0,
+        "startDateTime": "2026-04-09T09:00:00",
+        "endDateTime": "2026-04-09T16:00:00",
+        "types": [
+          "OTHER"
+        ],
+        "expenseIds": [],
+        "locationId": 3
+      },
+      {
+        "id": 4,
+        "name": "Rushing To CDE!",
+        "priority": 0,
+        "startDateTime": "2026-04-09T15:30:00",
+        "endDateTime": "2026-04-09T16:30:00",
+        "types": [
+          "ADVENTURE"
+        ],
+        "expenseIds": [],
+        "locationId": 1
+      }
+    ],
+    "expenseIds": [
+      3
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Who\u0027s In Paris",
+    "priority": 0,
+    "startDateTime": "2026-04-18T09:00:00",
+    "endDateTime": "2026-04-20T18:00:00",
+    "countryId": 5,
+    "activities": [
+      {
+        "id": 1,
+        "name": "Meetup With Kanye",
+        "priority": 0,
+        "startDateTime": "2026-04-18T10:00:00",
+        "endDateTime": "2026-04-18T12:00:00",
+        "types": [
+          "CULTURAL"
+        ],
+        "expenseIds": [],
+        "locationId": 4
+      }
+    ],
+    "expenseIds": [
+      4
+    ]
+  }
+]

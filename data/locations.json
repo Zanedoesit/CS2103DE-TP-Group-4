@@ -1,0 +1,31 @@
+[
+  {
+    "id": 1,
+    "name": "NUS College Of Design and Engineering",
+    "city": "Singapore",
+    "countryId": 1,
+    "imagePath": "data/images/location-nus-college-of-design-and-engineering.jpg"
+  },
+  {
+    "id": 2,
+    "name": "Pranavan\u0027s Meeting Room",
+    "city": "Singapore",
+    "countryId": 1,
+    "imagePath": "data/images/location-pranavan-s-meeting-room.jpg"
+  },
+  {
+    "id": 3,
+    "name": "Chaewon\u0027s Lock In Zone",
+    "city": "Singapore",
+    "countryId": 1,
+    "imagePath": "data/images/location-chaewon-lock-in-zone.jpg"
+  },
+  {
+    "id": 4,
+    "name": "Eiffel Tower",
+    "address": "5 Avenue Anatole",
+    "city": "Paris",
+    "countryId": 5,
+    "imagePath": "data/images/location-eiffel-tower.jpg"
+  }
+]

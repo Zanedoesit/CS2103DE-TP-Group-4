@@ -19,10 +19,14 @@
 *.tar.gz
 *.rar
 
+# Keep Gradle wrapper tracked so clones can run ./gradlew immediately.
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
-data/
 
 build/
 .gradle/
+out/
